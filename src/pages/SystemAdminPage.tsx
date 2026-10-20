@@ -116,6 +116,10 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
   const [hotelAddress, setHotelAddress] = useState('');
   const [hotelSaving, setHotelSaving] = useState(false);
 
+  const [addHotelOpen, setAddHotelOpen] = useState(false);
+  const [newHotelName, setNewHotelName] = useState('');
+  const [addHotelSaving, setAddHotelSaving] = useState(false);
+
   const [rtName, setRtName] = useState('');
   const [rtSaving, setRtSaving] = useState(false);
 
@@ -135,10 +139,34 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
 
   // ---------- Hotel CRUD ----------
   const openAddHotel = () => {
-    setHotelEdit(null);
-    setHotelName('');
-    setHotelCode('');
-    setHotelAddress('');
+    setNewHotelName('');
+    setAddHotelOpen(true);
+  };
+  const closeAddHotel = () => {
+    setAddHotelOpen(false);
+    setNewHotelName('');
+  };
+  const submitAddHotel = async () => {
+    if (!newHotelName.trim()) {
+      onToast({ kind: 'err', text: 'Tên khách sạn không được để trống.' });
+      return;
+    }
+    setAddHotelSaving(true);
+    try {
+      const { error } = await supabase.from('hotels').insert([{ name: newHotelName.trim() }]);
+      if (error) {
+        onToast({ kind: 'err', text: `Lỗi khi thêm khách sạn: ${error.message}` });
+        setAddHotelSaving(false);
+        return;
+      }
+      onToast({ kind: 'ok', text: 'Thêm khách sạn thành công!' });
+      closeAddHotel();
+      await loadHotels();
+    } catch (e) {
+      onToast({ kind: 'err', text: `Lỗi khi thêm khách sạn: ${(e as Error).message}` });
+    } finally {
+      setAddHotelSaving(false);
+    }
   };
   const openEditHotel = (h: Hotel) => {
     setHotelEdit(h);
@@ -397,16 +425,16 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
         )}
       </Card>
 
-      {/* Hotel add/edit modal */}
+      {/* Hotel edit modal */}
       <Modal
-        open={hotelEdit !== null || hotelName !== ''}
+        open={hotelEdit !== null}
         onClose={() => {
           setHotelEdit(null);
           setHotelName('');
           setHotelCode('');
           setHotelAddress('');
         }}
-        title={hotelEdit ? 'Sửa khách sạn' : 'Thêm khách sạn'}
+        title="Sửa khách sạn"
         maxWidth="max-w-sm"
       >
         <div className="space-y-3">
@@ -447,6 +475,34 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
             </Button>
             <Button variant="gold" onClick={saveHotel} disabled={hotelSaving}>
               {hotelSaving ? 'Đang lưu…' : 'Lưu'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Hotel add modal (simple — name only) */}
+      <Modal
+        open={addHotelOpen}
+        onClose={closeAddHotel}
+        title="Thêm khách sạn"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-3">
+          <Field label="Tên khách sạn">
+            <Input
+              value={newHotelName}
+              onChange={setNewHotelName}
+              placeholder="VD: D'Lecia Hotel"
+              autoFocus
+              onEnter={submitAddHotel}
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeAddHotel}>
+              Hủy bỏ
+            </Button>
+            <Button variant="gold" onClick={submitAddHotel} disabled={addHotelSaving}>
+              {addHotelSaving ? 'Đang lưu…' : 'Lưu'}
             </Button>
           </div>
         </div>
