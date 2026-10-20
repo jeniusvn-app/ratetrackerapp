@@ -3,8 +3,10 @@ import {
   BarChart3,
   CalendarClock,
   Clock,
+  CalendarDays,
   Download,
   History,
+  Layers,
   TrendingUp,
   Upload,
 } from 'lucide-react';
@@ -63,12 +65,6 @@ type Toast = { kind: 'ok' | 'err' | 'info'; text: string } | null;
 
 const WEEKDAY_VI = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
 // Parse BookedDatetime that may be "DD/MM/YYYY HH:mm:ss" or an ISO string.
 function parseBookedDateTime(raw: unknown): Date | null {
   if (raw instanceof Date) return raw;
@@ -98,6 +94,51 @@ function roomNights(r: PickupRecord): number {
   const qty = Number(r.quantity) || 1;
   const n = Number(r.nights) || 0;
   return qty * n;
+}
+
+// Enforce logical consistency: Arrival must be >= BookedDatetime.
+// Records where Arrival precedes BookedDatetime are invalid legacy entries.
+function isValidArrivalBooked(r: PickupRecord): boolean {
+  if (!r.arrival_date || !r.booked_datetime) return true;
+  const booked = parseBookedDateTime(r.booked_datetime);
+  if (!booked) return true;
+  return r.arrival_date >= toISODate(booked);
+}
+
+// Compute peak booking hour range from a set of records
+function computePeakHour(recs: PickupRecord[]): { range: string; nights: number; bookings: number } | null {
+  const buckets = new Map<string, { nights: number; bookings: number }>();
+  for (const r of recs) {
+    const dt = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
+    if (!dt) continue;
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const key = `${hh}:00`;
+    const cur = buckets.get(key) || { nights: 0, bookings: 0 };
+    cur.nights += roomNights(r);
+    cur.bookings += 1;
+    buckets.set(key, cur);
+  }
+  let top: { hour: string; nights: number; bookings: number } | null = null;
+  for (const [hour, v] of buckets) {
+    if (!top || v.nights > top.nights) top = { hour, nights: v.nights, bookings: v.bookings };
+  }
+  if (!top) return null;
+  const endHour = String(Number(top.hour.split(':')[0]) + 1).padStart(2, '0');
+  return { range: `${top.hour} - ${endHour}:00`, nights: top.nights, bookings: top.bookings };
+}
+
+// Compute top source by room nights from a set of records
+function computeTopSource(recs: PickupRecord[]): { source: string; nights: number } | null {
+  const map = new Map<string, number>();
+  for (const r of recs) {
+    const src = r.source || 'Không xác định';
+    map.set(src, (map.get(src) || 0) + roomNights(r));
+  }
+  let best: { source: string; nights: number } | null = null;
+  for (const [source, nights] of map) {
+    if (!best || nights > best.nights) best = { source, nights };
+  }
+  return best;
 }
 
 // ---------- Sample Excel generator ----------
@@ -428,116 +469,56 @@ export function PUReportPage() {
     });
   }, [records, mode, fromDate, toDate, sourceFilter, roomTypeFilter]);
 
-  // ---------- 24h alert analytics ----------
-  const last24hCut = startOfDay(new Date(Date.now() - 24 * 3600 * 1000));
+  // ============ BLOCK 1 & 2: REAL-TIME 24H (fixed rolling window, ignores date picker) ============
+  // Strict rolling window: BookedDatetime >= (now - 24h)
+  const cut24h = useMemo(() => new Date(Date.now() - 24 * 3600 * 1000), []);
   const recent24 = useMemo(
     () =>
       records.filter((r) => {
-        const dt = r.booked_datetime ? new Date(r.booked_datetime) : new Date(r.created_at);
-        return dt >= last24hCut;
+        if (!isValidArrivalBooked(r)) return false;
+        const dt = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : new Date(r.created_at);
+        if (!dt) return false;
+        return dt >= cut24h;
       }),
-    [records, last24hCut],
+    [records, cut24h],
   );
 
-  const alertLines = useMemo(() => {
+  // Block 1: 24h overview KPIs
+  const overview24h = useMemo(() => {
+    const confirmed = recent24.filter((r) => r.status !== 'Cancelled');
+    const nights = recent24.reduce((s, r) => s + roomNights(r), 0);
+    const revenue = confirmed.reduce((s, r) => s + (Number(r.room_revenue) || 0), 0);
+    const confirmedNights = confirmed.reduce((s, r) => s + roomNights(r), 0);
+    const adr = confirmedNights > 0 ? revenue / confirmedNights : 0;
+    const peak = computePeakHour(recent24);
+    const topSrc = computeTopSource(recent24);
     const agg = aggregateByArrival(recent24);
+    let peakArrival: DayAgg | null = null;
+    for (const v of agg.values()) {
+      if (!peakArrival || v.nights > peakArrival.nights) peakArrival = v;
+    }
     const todayISO = toISODate(new Date());
     const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
-
-    // Top arrival date by total nights (gross) within recent 24h
-    let top: DayAgg | null = null;
-    for (const v of agg.values()) {
-      if (!top || v.nights > top.nights) top = v;
-    }
     const getLine = (dateISO: string): string => {
       const a = agg.get(dateISO);
       if (!a) return '0 phòng — ADR: 0đ — Doanh thu: 0đ — Cancellation: 0';
       return `${a.nights} phòng — ADR: ${formatVND(Math.round(a.adr))} — Doanh thu: ${formatVND(Math.round(a.revenue))} — Cancellation: ${a.cancelCount}`;
     };
     return {
-      top: top
-        ? `${toDMY(top.date)} | ${top.nights} phòng — ADR: ${formatVND(Math.round(top.adr))} — Doanh thu: ${formatVND(Math.round(top.revenue))} — Cancellation: ${top.cancelCount}`
-        : '—',
+      nights,
+      revenue,
+      adr,
+      peak,
+      topSrc,
+      peakArrival: peakArrival
+        ? { date: peakArrival.date, label: `${toDMY(peakArrival.date)} | ${peakArrival.nights} phòng — ADR: ${formatVND(Math.round(peakArrival.adr))} — Doanh thu: ${formatVND(Math.round(peakArrival.revenue))} — Cancellation: ${peakArrival.cancelCount}` }
+        : null,
       today: getLine(todayISO),
       tomorrow: getLine(tomorrowISO),
     };
   }, [recent24]);
 
-  // ---------- Period summary ----------
-  const periodSummary = useMemo(() => {
-    const agg = aggregateByArrival(filtered);
-    let top: DayAgg | null = null;
-    for (const v of agg.values()) {
-      if (!top || v.nights > top.nights) top = v;
-    }
-    return top
-      ? `${toDMY(top.date)} | ADR: ${formatVND(Math.round(top.adr))} | Doanh thu: ${formatVND(Math.round(top.revenue))} | Cancellation: ${top.cancelCount}`
-      : '—';
-  }, [filtered]);
-
-  // ---------- Pagination ----------
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  // ---------- Summary footer (Room Nights = quantity * nights) ----------
-  const summary = useMemo(() => {
-    let nights = 0;
-    let revenue = 0;
-    let count = 0;
-    for (const r of filtered) {
-      if (r.status === 'Cancelled') continue;
-      nights += roomNights(r);
-      revenue += Number(r.room_revenue) || 0;
-      count++;
-    }
-    return { nights, revenue, adr: nights > 0 ? revenue / nights : 0, count };
-  }, [filtered]);
-
-  // ---------- Peak booking hour analysis (uses BookedDatetime) ----------
-  const peakHour = useMemo(() => {
-    const buckets = new Map<string, { nights: number; bookings: number }>();
-    for (const r of filtered) {
-      const dt = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
-      if (!dt) continue;
-      const hh = String(dt.getHours()).padStart(2, '0');
-      const key = `${hh}:00`;
-      const cur = buckets.get(key) || { nights: 0, bookings: 0 };
-      cur.nights += roomNights(r);
-      cur.bookings += 1;
-      buckets.set(key, cur);
-    }
-    let top: { hour: string; nights: number; bookings: number } | null = null;
-    for (const [hour, v] of buckets) {
-      if (!top || v.nights > top.nights) top = { hour, nights: v.nights, bookings: v.bookings };
-    }
-    if (!top) return null;
-    const endHour = String((Number(top.hour.split(':')[0]) + 1)).padStart(2, '0');
-    return { range: `${top.hour} - ${endHour}:00`, nights: top.nights, bookings: top.bookings };
-  }, [filtered]);
-
-  // ---------- Top source on peak day (within filtered range, grouped by Arrival) ----------
-  const topSourceOnPeakDay = useMemo(() => {
-    const agg = aggregateByArrival(filtered);
-    let peakDay: DayAgg | null = null;
-    for (const v of agg.values()) {
-      if (!peakDay || v.nights > peakDay.nights) peakDay = v;
-    }
-    if (!peakDay) return null;
-    const dayRecords = filtered.filter((r) => r.arrival_date === peakDay!.date);
-    const sourceMap = new Map<string, number>();
-    for (const r of dayRecords) {
-      const src = r.source || 'Không xác định';
-      sourceMap.set(src, (sourceMap.get(src) || 0) + roomNights(r));
-    }
-    let best: { source: string; nights: number } | null = null;
-    for (const [source, nights] of sourceMap) {
-      if (!best || nights > best.nights) best = { source, nights };
-    }
-    return best ? { date: peakDay.date, source: best.source, nights: best.nights } : null;
-  }, [filtered]);
-
-  // ---------- Source analytics for last 24h ----------
+  // Block 2: Source analytics 24h table
   const source24hRows = useMemo<SourceAggRow[]>(() => {
     interface InternalRow extends SourceAggRow {
       _hourBuckets: Map<string, number>;
@@ -549,27 +530,14 @@ export function PUReportPage() {
       const isCancel = r.status === 'Cancelled';
       const dt = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
       const hourKey = dt ? `${String(dt.getHours()).padStart(2, '0')}:00` : null;
-
       const cur = map.get(src) || {
-        source: src,
-        nights: 0,
-        revenue: 0,
-        adr: 0,
-        cancelCount: 0,
-        cancelNights: 0,
-        peakRange: null,
+        source: src, nights: 0, revenue: 0, adr: 0, cancelCount: 0, cancelNights: 0, peakRange: null,
         _hourBuckets: new Map<string, number>(),
       };
       cur.nights += rn;
-      if (isCancel) {
-        cur.cancelCount += 1;
-        cur.cancelNights += rn;
-      } else {
-        cur.revenue += Number(r.room_revenue) || 0;
-      }
-      if (hourKey) {
-        cur._hourBuckets.set(hourKey, (cur._hourBuckets.get(hourKey) || 0) + rn);
-      }
+      if (isCancel) { cur.cancelCount += 1; cur.cancelNights += rn; }
+      else { cur.revenue += Number(r.room_revenue) || 0; }
+      if (hourKey) cur._hourBuckets.set(hourKey, (cur._hourBuckets.get(hourKey) || 0) + rn);
       map.set(src, cur);
     }
     const rows: SourceAggRow[] = [];
@@ -590,6 +558,68 @@ export function PUReportPage() {
     rows.sort((a, b) => b.nights - a.nights);
     return rows;
   }, [recent24]);
+
+  // ============ BLOCK 3: CUSTOM PERIOD ANALYTICS (uses date picker, falls back to 24h) ============
+  const hasPeriod = fromDate !== '' || toDate !== '';
+  const periodHeader = hasPeriod
+    ? `Thống kê giai đoạn: ${fromDate ? toDMY(fromDate) : '…'} - ${toDate ? toDMY(toDate) : '…'}`
+    : 'Thống kê 24h vừa qua';
+
+  const periodRecords = useMemo(() => {
+    if (!hasPeriod) return recent24;
+    return records.filter((r) => {
+      if (!isValidArrivalBooked(r)) return false;
+      if (mode === 'net' && r.status !== 'Confirmed') return false;
+      if (mode === 'cancel' && r.status !== 'Cancelled') return false;
+      const booked = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
+      const bookedISO = booked ? toISODate(booked) : '';
+      if (fromDate && bookedISO && bookedISO < fromDate) return false;
+      if (toDate && bookedISO && bookedISO > toDate) return false;
+      if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
+      if (roomTypeFilter.length > 0 && !roomTypeFilter.includes(r.room_type || '')) return false;
+      return true;
+    });
+  }, [hasPeriod, recent24, records, mode, fromDate, toDate, sourceFilter, roomTypeFilter]);
+
+  const periodStats = useMemo(() => {
+    const confirmed = periodRecords.filter((r) => r.status !== 'Cancelled');
+    const nights = periodRecords.reduce((s, r) => s + roomNights(r), 0);
+    const revenue = confirmed.reduce((s, r) => s + (Number(r.room_revenue) || 0), 0);
+    const confirmedNights = confirmed.reduce((s, r) => s + roomNights(r), 0);
+    const adr = confirmedNights > 0 ? revenue / confirmedNights : 0;
+    const topSource = computeTopSource(periodRecords);
+    const peak = computePeakHour(periodRecords);
+    return { nights, revenue, adr, count: confirmed.length, topSource, peak };
+  }, [periodRecords]);
+
+  // Block 3: Arrival distribution matrix within the booked period
+  const periodArrivalMatrix = useMemo(() => {
+    const agg = aggregateByArrival(periodRecords);
+    return Array.from(agg.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [periodRecords]);
+
+  const periodMaxNights = useMemo(() => {
+    return periodArrivalMatrix.reduce((mx, d) => Math.max(mx, d.nights), 0);
+  }, [periodArrivalMatrix]);
+
+  // ---------- Pagination (uses `filtered` for the data table) ----------
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  // ---------- Summary footer (Room Nights = quantity * nights) ----------
+  const summary = useMemo(() => {
+    let nights = 0;
+    let revenue = 0;
+    let count = 0;
+    for (const r of filtered) {
+      if (r.status === 'Cancelled') continue;
+      nights += roomNights(r);
+      revenue += Number(r.room_revenue) || 0;
+      count++;
+    }
+    return { nights, revenue, adr: nights > 0 ? revenue / nights : 0, count };
+  }, [filtered]);
 
   const toggleRoomType = (rt: string) => {
     setRoomTypeFilter((prev) => (prev.includes(rt) ? prev.filter((x) => x !== rt) : [...prev, rt]));
@@ -718,206 +748,257 @@ export function PUReportPage() {
         </div>
         )}
 
-        {/* ============ DUAL-CARD STATISTICAL LAYOUT ============ */}
+        {/* ============ BLOCK 1: REAL-TIME 24H OVERVIEW ============ */}
         {isFullAccess && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* CARD 1: Top Summary Overview */}
-          <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
-              <TrendingUp size={16} /> Tổng quan 24h gần nhất
+        <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
+            <TrendingUp size={16} /> Khối 1 — Tổng Quan 24h (Real-time)
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Tổng PU Room Nights (24h)</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{overview24h.nights}</div>
             </div>
-            {/* KPI grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
-                <div className="text-xs text-navy-500">Tổng PU Room Nights</div>
-                <div className="text-lg font-bold mono-num text-navy-800">
-                  {recent24.reduce((s, r) => s + roomNights(r), 0)}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
-                <div className="text-xs text-navy-500">Tổng Doanh thu</div>
-                <div className="text-lg font-bold mono-num text-navy-800">
-                  {formatVND(Math.round(recent24.filter((r) => r.status !== 'Cancelled').reduce((s, r) => s + (Number(r.room_revenue) || 0), 0)))}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
-                <div className="text-xs text-navy-500">ADR trung bình</div>
-                <div className="text-lg font-bold mono-num text-navy-800">
-                  {formatVND(Math.round(
-                    (() => {
-                      const rn = recent24.filter((r) => r.status !== 'Cancelled').reduce((s, r) => s + roomNights(r), 0);
-                      const rev = recent24.filter((r) => r.status !== 'Cancelled').reduce((s, r) => s + (Number(r.room_revenue) || 0), 0);
-                      return rn > 0 ? rev / rn : 0;
-                    })(),
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
-                <div className="text-xs text-navy-500">Khung giờ PU nhiều nhất</div>
-                <div className="text-sm font-bold mono-num text-navy-800">
-                  {peakHour ? peakHour.range : '—'}
-                </div>
-                {peakHour && (
-                  <div className="text-xs mono-num text-navy-500">{peakHour.nights} phòng · {peakHour.bookings} booking</div>
-                )}
-              </div>
+            <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Tổng Doanh thu (24h)</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{formatVND(Math.round(overview24h.revenue))}</div>
             </div>
-            {/* Top source on peak day */}
-            {topSourceOnPeakDay && (
-              <div className="flex items-start gap-2 pt-1">
+            <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">ADR trung bình (24h)</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{formatVND(Math.round(overview24h.adr))}</div>
+            </div>
+            <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Khung giờ PU nhiều nhất</div>
+              <div className="text-sm font-bold mono-num text-navy-800">{overview24h.peak ? overview24h.peak.range : '—'}</div>
+              {overview24h.peak && <div className="text-xs mono-num text-navy-500">{overview24h.peak.nights} phòng · {overview24h.peak.bookings} booking</div>}
+            </div>
+          </div>
+          <div className="text-sm text-navy-800 space-y-1.5">
+            {overview24h.topSrc && (
+              <div className="flex items-start gap-2">
                 <BarChart3 size={15} className="text-gold-600 mt-0.5 flex-shrink-0" />
-                <span className="text-sm text-navy-800">
-                  <span className="text-navy-500">Nguồn PU hàng đầu (ngày {toDMY(topSourceOnPeakDay.date)}):</span>{' '}
-                  <span className="font-semibold">{topSourceOnPeakDay.source}</span>
-                  <span className="text-navy-400"> · {topSourceOnPeakDay.nights} phòng</span>
+                <span>
+                  <span className="text-navy-500">Top Nguồn 24h:</span>{' '}
+                  <span className="font-semibold">{overview24h.topSrc.source}</span>
+                  <span className="text-navy-400"> · {overview24h.topSrc.nights} phòng</span>
                 </span>
               </div>
             )}
-            {/* Existing overview lines */}
-            <div className="text-sm text-navy-800 space-y-1.5 pt-1 border-t border-gold-500/20">
+            {overview24h.peakArrival && (
               <div className="flex items-start gap-2">
                 <CalendarClock size={15} className="text-gold-600 mt-0.5 flex-shrink-0" />
                 <span>
                   <span className="text-navy-500">Ngày đến được đặt nhiều nhất:</span>{' '}
-                  <span className="font-semibold">{alertLines.top}</span>
+                  <span className="font-semibold">{overview24h.peakArrival.label}</span>
                 </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CalendarClock size={15} className="text-navy-500 mt-0.5 flex-shrink-0" />
-                <span>
-                  <span className="text-navy-500">Hôm nay:</span>{' '}
-                  <span className="font-semibold mono-num">{alertLines.today}</span>
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CalendarClock size={15} className="text-navy-500 mt-0.5 flex-shrink-0" />
-                <span>
-                  <span className="text-navy-500">Ngày mai:</span>{' '}
-                  <span className="font-semibold mono-num">{alertLines.tomorrow}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* CARD 2: Source Analytics Last 24h */}
-          <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
-            <div className="flex items-center gap-2 text-navy-700 font-semibold text-sm">
-              <BarChart3 size={16} /> Thống kê chi tiết theo Nguồn trong 24h
-            </div>
-            {source24hRows.length === 0 ? (
-              <EmptyState message="Không có dữ liệu PU trong 24h qua." />
-            ) : (
-              <div className="overflow-x-auto thin-scroll">
-                <table className="w-full text-xs">
-                  <thead className="bg-navy-50 text-navy-700">
-                    <tr>
-                      <th className="text-left px-2.5 py-2 font-semibold">Nguồn</th>
-                      <th className="text-right px-2.5 py-2 font-semibold">Số lượng PU</th>
-                      <th className="text-right px-2.5 py-2 font-semibold">ADR</th>
-                      <th className="text-right px-2.5 py-2 font-semibold">Doanh thu</th>
-                      <th className="text-right px-2.5 py-2 font-semibold">Hủy phòng</th>
-                      <th className="text-left px-2.5 py-2 font-semibold whitespace-nowrap">Khung giờ đặt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {source24hRows.map((row) => (
-                      <tr key={row.source} className="border-t border-navy-50">
-                        <td className="px-2.5 py-2 font-medium text-navy-800">{row.source}</td>
-                        <td className="px-2.5 py-2 text-right mono-num text-navy-700">{row.nights}</td>
-                        <td className="px-2.5 py-2 text-right mono-num text-navy-600">{formatVND(Math.round(row.adr))}</td>
-                        <td className="px-2.5 py-2 text-right mono-num font-semibold text-navy-800">{formatVND(Math.round(row.revenue))}</td>
-                        <td className="px-2.5 py-2 text-right mono-num text-red-600">
-                          {row.cancelCount > 0 ? `${row.cancelCount} (${row.cancelNights} phòng)` : '0'}
-                        </td>
-                        <td className="px-2.5 py-2 mono-num text-navy-600 whitespace-nowrap">
-                          {row.peakRange || '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
+            <div className="flex items-start gap-2">
+              <CalendarClock size={15} className="text-navy-500 mt-0.5 flex-shrink-0" />
+              <span>
+                <span className="text-navy-500">Hôm nay:</span>{' '}
+                <span className="font-semibold mono-num">{overview24h.today}</span>
+              </span>
+            </div>
+            <div className="flex items-start gap-2">
+              <CalendarClock size={15} className="text-navy-500 mt-0.5 flex-shrink-0" />
+              <span>
+                <span className="text-navy-500">Ngày mai:</span>{' '}
+                <span className="font-semibold mono-num">{overview24h.tomorrow}</span>
+              </span>
+            </div>
           </div>
         </div>
         )}
 
-        {/* Period filter bar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-          <div className="lg:col-span-3">
-            <Field label="Từ ngày đặt">
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => {
-                  setFromDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-              />
-            </Field>
-          </div>
-          <div className="lg:col-span-3">
-            <Field label="Đến ngày đặt">
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => {
-                  setToDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-              />
-            </Field>
-          </div>
-          <div className="lg:col-span-3">
-            <Field label="Kênh bán (Source)">
-              <Select
-                value={sourceFilter}
-                onChange={(v) => {
-                  setSourceFilter(v);
-                  setPage(1);
-                }}
-              >
-                <option value="all">Tất cả kênh</option>
-                {allSources.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="lg:col-span-3">
-            <Field label="Loại phòng (Multi-select)">
-              <div className="max-h-28 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white space-y-1">
-                {allRoomTypes.length === 0 && (
-                  <div className="text-xs text-navy-400">Chưa có loại phòng.</div>
-                )}
-                {allRoomTypes.map((rt) => (
-                  <label
-                    key={rt}
-                    className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={roomTypeFilter.includes(rt)}
-                      onChange={() => toggleRoomType(rt)}
-                      className="accent-gold-500"
-                    />
-                    {rt}
-                  </label>
-                ))}
-              </div>
-            </Field>
-          </div>
-        </div>
-
-        {/* Period summary */}
+        {/* ============ BLOCK 2: REAL-TIME 24H SOURCE ANALYTICS ============ */}
         {isFullAccess && (
-        <div className="rounded-lg bg-navy-50 border border-navy-100 px-4 py-3 text-sm text-navy-700">
-          <span className="text-navy-500">Top ngày được đặt nhiều nhất trong giai đoạn:</span>{' '}
-          <span className="font-semibold mono-num text-navy-800">{periodSummary}</span>
+        <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
+          <div className="flex items-center gap-2 text-navy-700 font-semibold text-sm">
+            <Layers size={16} /> Khối 2 — Thống Kê Theo Nguồn 24h (Real-time)
+          </div>
+          {source24hRows.length === 0 ? (
+            <EmptyState message="Không có dữ liệu PU trong 24h qua." />
+          ) : (
+            <div className="overflow-x-auto thin-scroll">
+              <table className="w-full text-xs">
+                <thead className="bg-navy-50 text-navy-700">
+                  <tr>
+                    <th className="text-left px-2.5 py-2 font-semibold">Nguồn</th>
+                    <th className="text-right px-2.5 py-2 font-semibold">Số lượng PU</th>
+                    <th className="text-right px-2.5 py-2 font-semibold">ADR</th>
+                    <th className="text-right px-2.5 py-2 font-semibold">Doanh thu</th>
+                    <th className="text-right px-2.5 py-2 font-semibold">Hủy phòng</th>
+                    <th className="text-left px-2.5 py-2 font-semibold whitespace-nowrap">Khung giờ đặt nhiều nhất</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {source24hRows.map((row) => (
+                    <tr key={row.source} className="border-t border-navy-50">
+                      <td className="px-2.5 py-2 font-medium text-navy-800">{row.source}</td>
+                      <td className="px-2.5 py-2 text-right mono-num text-navy-700">{row.nights}</td>
+                      <td className="px-2.5 py-2 text-right mono-num text-navy-600">{formatVND(Math.round(row.adr))}</td>
+                      <td className="px-2.5 py-2 text-right mono-num font-semibold text-navy-800">{formatVND(Math.round(row.revenue))}</td>
+                      <td className="px-2.5 py-2 text-right mono-num text-red-600">
+                        {row.cancelCount > 0 ? `${row.cancelCount} (${row.cancelNights} phòng)` : '0'}
+                      </td>
+                      <td className="px-2.5 py-2 mono-num text-navy-600 whitespace-nowrap">{row.peakRange || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* ============ BLOCK 3: CUSTOM PERIOD ANALYTICS ============ */}
+        {isFullAccess && (
+        <div className="rounded-xl border border-navy-300 bg-white p-4 space-y-4">
+          <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+            <CalendarDays size={16} /> Khối 3 — {periodHeader}
+          </div>
+
+          {/* Period filter bar */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+            <div className="lg:col-span-3">
+              <Field label="Từ ngày đặt">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+            </div>
+            <div className="lg:col-span-3">
+              <Field label="Đến ngày đặt">
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+            </div>
+            <div className="lg:col-span-3">
+              <Field label="Kênh bán (Source)">
+                <Select
+                  value={sourceFilter}
+                  onChange={(v) => { setSourceFilter(v); setPage(1); }}
+                >
+                  <option value="all">Tất cả kênh</option>
+                  {allSources.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="lg:col-span-3">
+              <Field label="Loại phòng (Multi-select)">
+                <div className="max-h-28 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white space-y-1">
+                  {allRoomTypes.length === 0 && (
+                    <div className="text-xs text-navy-400">Chưa có loại phòng.</div>
+                  )}
+                  {allRoomTypes.map((rt) => (
+                    <label
+                      key={rt}
+                      className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={roomTypeFilter.includes(rt)}
+                        onChange={() => toggleRoomType(rt)}
+                        className="accent-gold-500"
+                      />
+                      {rt}
+                    </label>
+                  ))}
+                </div>
+              </Field>
+            </div>
+          </div>
+
+          {/* Period KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Tổng Room Nights</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{periodStats.nights}</div>
+            </div>
+            <div className="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Tổng Doanh thu</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{formatVND(Math.round(periodStats.revenue))}</div>
+            </div>
+            <div className="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">ADR trung bình</div>
+              <div className="text-lg font-bold mono-num text-navy-800">{formatVND(Math.round(periodStats.adr))}</div>
+            </div>
+            <div className="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5">
+              <div className="text-xs text-navy-500">Top Nguồn</div>
+              <div className="text-sm font-bold text-navy-800">{periodStats.topSource ? periodStats.topSource.source : '—'}</div>
+              {periodStats.topSource && <div className="text-xs mono-num text-navy-500">{periodStats.topSource.nights} phòng</div>}
+            </div>
+          </div>
+
+          {/* Peak booking hour for period */}
+          {periodStats.peak && (
+            <div className="rounded-lg bg-navy-50 border border-navy-100 px-4 py-3 text-sm text-navy-700 flex items-center gap-3">
+              <Clock size={16} className="text-navy-600 flex-shrink-0" />
+              <span>
+                <span className="text-navy-500">Khung giờ PU nhiều nhất:</span>{' '}
+                <span className="font-semibold mono-num text-navy-800">{periodStats.peak.range}</span>
+                <span className="text-navy-400 mx-1">·</span>
+                <span className="mono-num">{periodStats.peak.nights} phòng · {periodStats.peak.bookings} booking</span>
+              </span>
+            </div>
+          )}
+
+          {/* Arrival distribution matrix */}
+          {periodArrivalMatrix.length > 0 ? (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-navy-600 uppercase tracking-wide">Phân bổ PU theo ngày đến (Arrival)</div>
+              <div className="overflow-x-auto thin-scroll">
+                <table className="w-full text-xs">
+                  <thead className="bg-navy-50 text-navy-700">
+                    <tr>
+                      <th className="text-left px-2.5 py-2 font-semibold">Ngày đến</th>
+                      <th className="text-left px-2.5 py-2 font-semibold">Thứ</th>
+                      <th className="text-right px-2.5 py-2 font-semibold">Room Nights</th>
+                      <th className="text-right px-2.5 py-2 font-semibold">Doanh thu</th>
+                      <th className="text-right px-2.5 py-2 font-semibold">ADR</th>
+                      <th className="text-right px-2.5 py-2 font-semibold">Hủy</th>
+                      <th className="text-left px-2.5 py-2 font-semibold w-1/3">Phân bổ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {periodArrivalMatrix.map((d) => {
+                      const dt = new Date(d.date + 'T00:00:00');
+                      const weekday = WEEKDAY_VI[dt.getDay()] || '—';
+                      const isSaturday = dt.getDay() === 6;
+                      const pct = periodMaxNights > 0 ? (d.nights / periodMaxNights) * 100 : 0;
+                      return (
+                        <tr key={d.date} className={`border-t border-navy-50 ${isSaturday ? 'bg-amber-50/40' : ''}`}>
+                          <td className="px-2.5 py-2 mono-num text-navy-700 whitespace-nowrap">{toDMY(d.date)}</td>
+                          <td className={`px-2.5 py-2 ${isSaturday ? 'text-amber-700 font-semibold' : 'text-navy-600'}`}>{weekday}</td>
+                          <td className="px-2.5 py-2 text-right mono-num text-navy-700">{d.nights}</td>
+                          <td className="px-2.5 py-2 text-right mono-num font-semibold text-navy-800">{formatVND(Math.round(d.revenue))}</td>
+                          <td className="px-2.5 py-2 text-right mono-num text-navy-600">{formatVND(Math.round(d.adr))}</td>
+                          <td className="px-2.5 py-2 text-right mono-num text-red-600">{d.cancelCount}</td>
+                          <td className="px-2.5 py-2">
+                            <div className="h-2 bg-navy-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-gold-500 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <EmptyState message="Không có dữ liệu trong giai đoạn đã chọn." />
+          )}
         </div>
         )}
       </Card>
