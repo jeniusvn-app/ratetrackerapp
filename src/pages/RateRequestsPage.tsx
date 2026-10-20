@@ -1,0 +1,664 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth, isAdmin } from '@/auth/AuthContext';
+import { useRoomTypes } from '@/lib/useRoomTypes';
+import type { Hotel, PriceMatrix, RateChangeRequest, RoomType } from '@/types';
+import { Button, Select, Card, Field, Badge, EmptyState, Modal, Input } from '@/components/ui';
+import { normCode, toDMY, dateRangeISO, toISODate } from '@/lib/format';
+import { sendTelegramMessage } from '@/services/telegramService';
+
+type Toast = { kind: 'ok' | 'err' | 'info'; text: string } | null;
+
+function fmtDateTime(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+
+export function RateRequestsPage() {
+  const { user, hotels, allHotels } = useAuth();
+  const admin = isAdmin(user);
+
+  // Form state
+  const [formHotelId, setFormHotelId] = useState('');
+  const [startDate, setStartDate] = useState(toISODate(new Date()));
+  const [endDate, setEndDate] = useState(toISODate(new Date()));
+  const [rateCode, setRateCode] = useState('');
+  const [selectedRoomTypeIds, setSelectedRoomTypeIds] = useState<string[]>([]);
+  const [dynSell, setDynSell] = useState('');
+  const [dynNet, setDynNet] = useState('');
+  const [dynB2b, setDynB2b] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // Admin filters
+  const [filterHotel, setFilterHotel] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  const [requests, setRequests] = useState<RateChangeRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast>(null);
+  const [confirm, setConfirm] = useState<RateChangeRequest | null>(null);
+
+  const { roomTypes } = useRoomTypes(formHotelId || null);
+  const [rateCodes, setRateCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (hotels.length && !formHotelId) setFormHotelId(hotels[0].id);
+  }, [hotels, formHotelId]);
+
+  // Load distinct rate codes for the selected hotel from price_matrix.
+  // Normalization: .trim().toUpperCase() applied to every code.
+  useEffect(() => {
+    (async () => {
+      if (!formHotelId) {
+        setRateCodes([]);
+        setRateCode('');
+        return;
+      }
+      const { data } = await supabase
+        .from('price_matrix')
+        .select('rate_code')
+        .eq('hotel_id', formHotelId);
+      const set = new Set<string>();
+      (data || []).forEach((r: { rate_code: string }) => set.add(normCode(r.rate_code)));
+      const arr = Array.from(set);
+      setRateCodes(arr);
+      if (arr.length > 0) setRateCode(arr[0]);
+      else setRateCode('Dynamic');
+    })();
+  }, [formHotelId]);
+
+  const hotelNameById = useCallback(
+    (id: string) => [...allHotels].find((h) => h.id === id)?.name || '',
+    [allHotels],
+  );
+
+  const loadRequests = useCallback(async () => {
+    setLoading(true);
+    let q = supabase
+      .from('rate_change_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (filterHotel !== 'all') q = q.eq('hotel_id', filterHotel);
+    if (filterStatus !== 'all') q = q.eq('status', filterStatus);
+    const { data } = await q;
+    setRequests((data as RateChangeRequest[]) || []);
+    setLoading(false);
+  }, [filterHotel, filterStatus]);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
+
+  // ---------- Submit ----------
+  const isDynamic = rateCode === 'Dynamic';
+  const submit = async () => {
+    setFormMsg(null);
+    if (!formHotelId || !rateCode || !startDate || !endDate) {
+      setFormMsg({ kind: 'err', text: 'Vui lòng điền đầy đủ các trường.' });
+      return;
+    }
+    if (startDate > endDate) {
+      setFormMsg({ kind: 'err', text: 'Từ ngày phải trước hoặc bằng Đến ngày.' });
+      return;
+    }
+    if (isDynamic) {
+      if (selectedRoomTypeIds.length === 0) {
+        setFormMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một loại phòng cho yêu cầu Dynamic.' });
+        return;
+      }
+      if (dynSell === '' && dynNet === '' && dynB2b === '') {
+        setFormMsg({ kind: 'err', text: 'Vui lòng nhập ít nhất một mức giá (Giá bán, Giá thu về hoặc Giá B2B).' });
+        return;
+      }
+    }
+    setSubmitting(true);
+    const payload: Record<string, unknown> = {
+      hotel_id: formHotelId,
+      start_date: startDate,
+      end_date: endDate,
+      rate_code: rateCode,
+      status: 'Pending',
+      created_by_user_id: user?.id,
+      room_type_ids: isDynamic ? selectedRoomTypeIds : null,
+      selling_price: isDynamic && dynSell !== '' ? Number(dynSell) : null,
+      net_price: isDynamic && dynNet !== '' ? Number(dynNet) : null,
+      b2b_price: isDynamic && dynB2b !== '' ? Number(dynB2b) : null,
+    };
+    const { error } = await supabase.from('rate_change_requests').insert(payload);
+    if (error) {
+      setFormMsg({ kind: 'err', text: `Lỗi lưu yêu cầu: ${error.message}` });
+      setSubmitting(false);
+      return;
+    }
+    // Notify admin via Telegram
+    const hotelName = hotelNameById(formHotelId);
+    const dynSummary = isDynamic
+      ? `<b>Loại phòng:</b> ${selectedRoomTypeIds
+          .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
+          .join(', ')}\n` +
+        `<b>Giá bán:</b> ${dynSell || '—'}đ · <b>Giá thu về:</b> ${dynNet || '—'}đ · <b>Giá B2B:</b> ${dynB2b || '—'}đ\n`
+      : '';
+    await sendTelegramMessage(
+      `<b>🚨 YÊU CẦU CHỈNH GIÁ MỚI</b>\n` +
+        `<b>Khách sạn:</b> ${hotelName}\n` +
+        `<b>Mã giá:</b> ${rateCode}\n` +
+        dynSummary +
+        `<b>Giai đoạn:</b> ${toDMY(startDate)} đến ${toDMY(endDate)}\n` +
+        `<b>Người tạo:</b> ${user?.username || '—'}\n` +
+        `<b>Thời gian:</b> ${fmtDateTime(new Date())}`,
+    );
+    setFormMsg({ kind: 'ok', text: 'Đã gửi yêu cầu thành công. Admin sẽ nhận thông báo qua Telegram.' });
+    if (isDynamic) {
+      setSelectedRoomTypeIds([]);
+      setDynSell('');
+      setDynNet('');
+      setDynB2b('');
+    }
+    setSubmitting(false);
+    await loadRequests();
+  };
+
+  // ---------- Approve & Apply ----------
+  const approveAndApply = async (req: RateChangeRequest) => {
+    setActingId(req.id);
+    setToast(null);
+    try {
+      // 1. Normalize target rate code
+      const normTarget = normCode(req.rate_code);
+
+      // 2. Strict YYYY-MM-DD dates (already stored as such; rebuild defensively)
+      const dates = dateRangeISO(req.start_date, req.end_date);
+      if (dates.length === 0) {
+        setToast({ kind: 'err', text: 'Khoảng ngày không hợp lệ.' });
+        setActingId(null);
+        return;
+      }
+
+      // 3. Fetch ALL room types for the hotel
+      const { data: rts } = await supabase
+        .from('room_types')
+        .select('*')
+        .eq('hotel_id', req.hotel_id);
+      const roomTypes = (rts as RoomType[]) || [];
+
+      // Fetch matching prices from price_matrix for the hotel
+      const { data: pm } = await supabase
+        .from('price_matrix')
+        .select('*')
+        .eq('hotel_id', req.hotel_id);
+      const matrix = (pm as PriceMatrix[]) || [];
+
+      // 4. Build daily_rates rows for every room type × date
+      const rows: {
+        hotel_id: string;
+        room_type_id: string;
+        date: string;
+        rate_code: string;
+        selling_price: number;
+        net_price: number;
+        cms_price: number;
+        b2b_price: number | null;
+      }[] = [];
+
+      if (normTarget === 'DYNAMIC') {
+        // Dynamic request: apply the user-provided prices to the selected room types.
+        const dynRoomTypeIds: string[] =
+          (req.room_type_ids as string[] | null) || [];
+        const sellNum = req.selling_price != null ? Number(req.selling_price) : null;
+        const netNum = req.net_price != null ? Number(req.net_price) : null;
+        const b2bNum = req.b2b_price != null ? Number(req.b2b_price) : null;
+        for (const rtId of dynRoomTypeIds) {
+          for (const date of dates) {
+            rows.push({
+              hotel_id: req.hotel_id,
+              room_type_id: rtId,
+              date,
+              rate_code: 'Dynamic',
+              selling_price: sellNum ?? 0,
+              net_price: netNum ?? 0,
+              cms_price: 0,
+              b2b_price: b2bNum,
+            });
+          }
+        }
+      } else {
+        for (const rt of roomTypes) {
+          const matches = matrix.filter(
+            (m) => m.room_type_id === rt.id && normCode(m.rate_code) === normTarget,
+          );
+          for (const m of matches) {
+            for (const date of dates) {
+              rows.push({
+                hotel_id: req.hotel_id,
+                room_type_id: rt.id,
+                date, // YYYY-MM-DD
+                rate_code: m.rate_code,
+                selling_price: Number(m.selling_price),
+                net_price: Number(m.net_price),
+                cms_price: Number(m.cms_price),
+                b2b_price: m.b2b_price != null ? Number(m.b2b_price) : null,
+              });
+            }
+          }
+        }
+      }
+
+      if (rows.length === 0) {
+        // No matching rates in matrix — still mark Approved but inform
+        await supabase
+          .from('rate_change_requests')
+          .update({ status: 'Approved' })
+          .eq('id', req.id);
+        await sendTelegramMessage(
+          `<b>✅ YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
+            `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
+            `<b>Mã giá:</b> ${req.rate_code}\n` +
+            `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}\n` +
+            `<b>Trạng thái:</b> Đã cập nhật vào lịch giá Trang 1!`,
+        );
+        setToast({
+          kind: 'info',
+          text: 'Đã duyệt nhưng không có giá trong price_matrix để áp dụng.',
+        });
+        await loadRequests();
+        setActingId(null);
+        return;
+      }
+
+      // 4. UPSERT into daily_rates — delete existing rows for the same
+      // (hotel, room_type, rate_code, date range) then insert fresh.
+      const keys = new Set<string>();
+      for (const r of rows) keys.add(`${r.room_type_id}|${r.rate_code}`);
+      for (const k of keys) {
+        const [rtId, rc] = k.split('|');
+        await supabase
+          .from('daily_rates')
+          .delete()
+          .eq('hotel_id', req.hotel_id)
+          .eq('room_type_id', rtId)
+          .eq('rate_code', rc)
+          .gte('date', req.start_date)
+          .lte('date', req.end_date);
+      }
+      const { error: insErr } = await supabase.from('daily_rates').insert(rows);
+      if (insErr) throw insErr;
+
+      // Bump version so Page 1 (Lookup Calendar) re-fetches when visited.
+      try {
+        const cur = Number(localStorage.getItem('rt_daily_rates_version') || '0');
+        localStorage.setItem('rt_daily_rates_version', String(cur + 1));
+      } catch {
+        // ignore
+      }
+
+      // 5. Update status to Approved
+      await supabase
+        .from('rate_change_requests')
+        .update({ status: 'Approved' })
+        .eq('id', req.id);
+
+      // 6. Notify via Telegram
+      await sendTelegramMessage(
+        `<b>✅ YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
+          `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
+          `<b>Mã giá:</b> ${req.rate_code}\n` +
+          `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}\n` +
+          `<b>Trạng thái:</b> Đã cập nhật vào lịch giá Trang 1!`,
+      );
+
+      // 7. Refresh the request list (Page 1 calendar re-fetches on its own when visited)
+      setToast({
+        kind: 'ok',
+        text: `Đã duyệt và áp dụng ${rows.length} bản ghi giá vào lịch.`,
+      });
+      await loadRequests();
+    } catch (e) {
+      setToast({ kind: 'err', text: `Lỗi khi áp dụng: ${(e as Error).message}` });
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  // ---------- Reject ----------
+  const reject = async (req: RateChangeRequest) => {
+    setActingId(req.id);
+    setToast(null);
+    await supabase
+      .from('rate_change_requests')
+      .update({ status: 'Rejected' })
+      .eq('id', req.id);
+    await sendTelegramMessage(
+      `<b>❌ YÊU CẦU CHỈNH GIÁ BỊ TỪ CHỐI</b>\n` +
+        `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
+        `<b>Mã giá:</b> ${req.rate_code}\n` +
+        `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}`,
+    );
+    setToast({ kind: 'info', text: 'Đã từ chối yêu cầu và gửi thông báo qua Telegram.' });
+    await loadRequests();
+    setActingId(null);
+  };
+
+  const statusBadge = (s: string) => {
+    if (s === 'Approved') return <Badge tone="green">Đã duyệt</Badge>;
+    if (s === 'Rejected') return <Badge tone="red">Từ chối</Badge>;
+    return <Badge tone="amber">Chờ duyệt</Badge>;
+  };
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const pendingCount = useMemo(
+    () => requests.filter((r) => r.status === 'Pending').length,
+    [requests],
+  );
+
+  return (
+    <div className="space-y-4 fade-in">
+      {toast && (
+        <div
+          className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-lg shadow-pop text-sm fade-in max-w-sm ${
+            toast.kind === 'ok'
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : toast.kind === 'err'
+                ? 'bg-red-50 border border-red-200 text-red-800'
+                : 'bg-navy-50 border border-navy-200 text-navy-800'
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Form tạo yêu cầu */}
+        <Card className="p-4 lg:col-span-1">
+          <h2 className="text-base font-semibold text-navy-800 mb-3">Tạo yêu cầu chỉnh giá</h2>
+          <div className="space-y-3">
+            <Field label="Khách sạn">
+              <Select value={formHotelId} onChange={setFormHotelId}>
+                {hotels.map((h: Hotel) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Từ ngày">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+              <Field label="Đến ngày">
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+            </div>
+            <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : 'VD: BAR 1, BAR 3, PEAK 1, BREAKFAST…'}>
+              <Select value={rateCode} onChange={setRateCode}>
+                {rateCodes.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value="Dynamic">Dynamic</option>
+              </Select>
+            </Field>
+            {isDynamic && (
+              <>
+                <Field label="Chọn loại phòng" hint="Chọn một hoặc nhiều loại phòng">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white">
+                    {roomTypes.map((rt) => (
+                      <label
+                        key={rt.id}
+                        className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedRoomTypeIds.includes(rt.id)}
+                          onChange={(e) => {
+                            setSelectedRoomTypeIds((prev) =>
+                              e.target.checked
+                                ? [...prev, rt.id]
+                                : prev.filter((x) => x !== rt.id),
+                            );
+                          }}
+                          className="accent-gold-500"
+                        />
+                        {rt.name}
+                      </label>
+                    ))}
+                    {roomTypes.length === 0 && (
+                      <div className="text-xs text-navy-400">Chưa có loại phòng cho khách sạn này.</div>
+                    )}
+                  </div>
+                </Field>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Giá bán (VND)" hint="Tuỳ chọn">
+                    <Input value={dynSell} onChange={setDynSell} type="number" placeholder="990000" />
+                  </Field>
+                  <Field label="Giá thu về (VND)" hint="Tuỳ chọn">
+                    <Input value={dynNet} onChange={setDynNet} type="number" placeholder="841500" />
+                  </Field>
+                  <Field label="Giá B2B (VND)" hint="Tuỳ chọn">
+                    <Input value={dynB2b} onChange={setDynB2b} type="number" placeholder="750000" />
+                  </Field>
+                </div>
+                <div className="text-xs text-navy-400">
+                  Chỉ cần nhập ít nhất một mức giá.
+                </div>
+              </>
+            )}
+            {formMsg && (
+              <div
+                className={`text-sm rounded-lg px-3 py-2 ${
+                  formMsg.kind === 'ok'
+                    ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                    : 'text-red-700 bg-red-50 border border-red-100'
+                }`}
+              >
+                {formMsg.text}
+              </div>
+            )}
+            <Button variant="gold" onClick={submit} disabled={submitting} className="w-full">
+              {submitting ? 'Đang gửi…' : 'Gửi yêu cầu'}
+            </Button>
+            <div className="text-xs text-navy-400 pt-1 flex items-center justify-between">
+              <span>Loại phòng khả dụng: {roomTypes.length}</span>
+              <span>Mã giá khả dụng: {rateCodes.length}</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Lịch sử yêu cầu & admin workflow */}
+        <Card className="p-4 lg:col-span-2">
+          <div className="flex flex-wrap items-end gap-3 mb-3">
+            <div className="mr-auto flex items-baseline gap-2">
+              <h2 className="text-base font-semibold text-navy-800">Lịch sử yêu cầu</h2>
+              <span className="text-xs text-navy-400">{requests.length} yêu cầu · {pendingCount} chờ duyệt</span>
+            </div>
+            {admin && (
+              <>
+                <Field label="Khách sạn" className="w-48">
+                  <Select value={filterHotel} onChange={setFilterHotel}>
+                    <option value="all">Tất cả</option>
+                    {hotels.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Trạng thái" className="w-40">
+                  <Select value={filterStatus} onChange={setFilterStatus}>
+                    <option value="all">Tất cả</option>
+                    <option value="Pending">Chờ duyệt</option>
+                    <option value="Approved">Đã duyệt</option>
+                    <option value="Rejected">Từ chối</option>
+                  </Select>
+                </Field>
+              </>
+            )}
+          </div>
+
+          {requests.length === 0 ? (
+            <EmptyState message={loading ? 'Đang tải dữ liệu…' : 'Chưa có yêu cầu nào được tạo.'} />
+          ) : (
+            <div className="overflow-x-auto thin-scroll">
+              <table className="w-full text-sm">
+                <thead className="bg-navy-50 text-navy-700">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold">Khách sạn</th>
+                    <th className="text-left px-3 py-2 font-semibold">Mã giá</th>
+                    <th className="text-left px-3 py-2 font-semibold">Giai đoạn</th>
+                    <th className="text-left px-3 py-2 font-semibold">Người gửi</th>
+                    <th className="text-left px-3 py-2 font-semibold">Trạng thái</th>
+                    <th className="text-left px-3 py-2 font-semibold">Ngày tạo</th>
+                    {admin && <th className="text-right px-3 py-2 font-semibold">Hành động</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map((r) => (
+                    <tr key={r.id} className="border-t border-navy-50">
+                      <td className="px-3 py-2.5 text-navy-700">{hotelNameById(r.hotel_id)}</td>
+                      <td className="px-3 py-2.5">
+                        <Badge tone={r.rate_code === 'Dynamic' ? 'gold' : 'neutral'}>{r.rate_code}</Badge>
+                      </td>
+                      <td className="px-3 py-2.5 mono-num text-navy-600 whitespace-nowrap">
+                        {toDMY(r.start_date)} → {toDMY(r.end_date)}
+                      </td>
+                      <td className="px-3 py-2.5 text-navy-600 text-xs">
+                        {r.created_by_user_id ? r.created_by_user_id.slice(0, 8) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5">{statusBadge(r.status)}</td>
+                      <td className="px-3 py-2.5 mono-num text-navy-500 text-xs whitespace-nowrap">
+                        {new Date(r.created_at).toLocaleString('vi-VN')}
+                      </td>
+                      {admin && (
+                        <td className="px-3 py-2.5 text-right">
+                          {r.status === 'Pending' ? (
+                            <div className="inline-flex gap-2">
+                              <Button
+                                variant="gold"
+                                size="sm"
+                                onClick={() => setConfirm(r)}
+                                disabled={actingId === r.id}
+                              >
+                                Duyệt & Áp dụng giá
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => reject(r)}
+                                disabled={actingId === r.id}
+                              >
+                                Từ chối
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-navy-300 text-xs">—</span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Confirmation modal for Approve & Apply */}
+      <Modal
+        open={!!confirm}
+        onClose={() => setConfirm(null)}
+        title="Xác nhận phê duyệt"
+        maxWidth="max-w-md"
+      >
+        {confirm && (
+          <div className="space-y-4">
+            <p className="text-sm text-navy-600">
+              Bạn sắp <b>phê duyệt</b> và áp dụng giá cho yêu cầu sau:
+            </p>
+            <div className="rounded-lg bg-navy-50 border border-navy-100 p-3 text-sm space-y-1">
+              <div>
+                <span className="text-navy-500">Khách sạn:</span>{' '}
+                <span className="font-semibold text-navy-800">{hotelNameById(confirm.hotel_id)}</span>
+              </div>
+              <div>
+                <span className="text-navy-500">Mã giá:</span>{' '}
+                <span className="font-semibold text-navy-800">{confirm.rate_code}</span>
+              </div>
+              {confirm.rate_code === 'Dynamic' && (
+                <>
+                  <div>
+                    <span className="text-navy-500">Loại phòng:</span>{' '}
+                    <span className="text-navy-800">
+                      {Array.isArray(confirm.room_type_ids)
+                        ? confirm.room_type_ids
+                            .map(
+                              (id) =>
+                                roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8),
+                            )
+                            .join(', ')
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="mono-num text-navy-800">
+                    Giá bán: {confirm.selling_price != null ? confirm.selling_price.toLocaleString('vi-VN') + 'đ' : '—'} ·{' '}
+                    Giá thu về: {confirm.net_price != null ? confirm.net_price.toLocaleString('vi-VN') + 'đ' : '—'} ·{' '}
+                    Giá B2B: {confirm.b2b_price != null ? confirm.b2b_price.toLocaleString('vi-VN') + 'đ' : '—'}
+                  </div>
+                </>
+              )}
+              <div>
+                <span className="text-navy-500">Giai đoạn:</span>{' '}
+                <span className="mono-num text-navy-800">
+                  {toDMY(confirm.start_date)} → {toDMY(confirm.end_date)}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-navy-500">
+              {confirm.rate_code === 'Dynamic'
+                ? 'Yêu cầu Dynamic sẽ áp dụng các mức giá người dùng nhập trực tiếp cho các loại phòng đã chọn, lưu vào daily_rates với mã Dynamic. Thông báo xác nhận sẽ được gửi qua Telegram.'
+                : 'Hệ thống sẽ tra cứu bảng giá (price_matrix) cho tất cả loại phòng của khách sạn, chuẩn hoá mã giá bằng .trim().toUpperCase(), định dạng ngày dạng YYYY-MM-DD, và đẩy vào daily_rates — cập nhật ngay trên Trang tra cứu. Thông báo xác nhận sẽ được gửi qua Telegram.'}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="secondary" onClick={() => setConfirm(null)}>
+                Hủy
+              </Button>
+              <Button
+                variant="gold"
+                onClick={async () => {
+                  const req = confirm;
+                  setConfirm(null);
+                  await approveAndApply(req);
+                }}
+                disabled={actingId === confirm.id}
+              >
+                {actingId === confirm.id ? 'Đang áp dụng…' : 'Duyệt & Áp dụng giá'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
