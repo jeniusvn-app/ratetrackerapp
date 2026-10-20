@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
   CalendarClock,
+  Clock,
   Download,
   History,
   Upload,
@@ -53,6 +53,7 @@ interface PickupRecord {
   status: string | null;
   booked_datetime: string | null;
   created_at: string;
+  quantity: number | null;
 }
 
 type Mode = 'gross' | 'net' | 'cancel';
@@ -64,6 +65,37 @@ function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
+}
+
+// Parse BookedDatetime that may be "DD/MM/YYYY HH:mm:ss" or an ISO string.
+function parseBookedDateTime(raw: unknown): Date | null {
+  if (raw instanceof Date) return raw;
+  if (raw == null) return null;
+  const str = String(raw).trim();
+  if (!str) return null;
+  // DD/MM/YYYY HH:mm:ss or DD/MM/YYYY HH:mm
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) {
+    const [, d, mo, y, h, mi, s] = m;
+    const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), s ? Number(s) : 0);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  // DD/MM/YYYY (date only)
+  const md = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (md) {
+    const [, d, mo, y] = md;
+    const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+// Room Nights for a record = quantity (default 1) * nights
+function roomNights(r: PickupRecord): number {
+  const qty = Number(r.quantity) || 1;
+  const n = Number(r.nights) || 0;
+  return qty * n;
 }
 
 // ---------- Sample Excel generator ----------
@@ -128,7 +160,7 @@ function aggregateByArrival(records: PickupRecord[]): Map<string, DayAgg> {
     if (!r.arrival_date) continue;
     const key = r.arrival_date;
     const cur = map.get(key) || { date: key, nights: 0, revenue: 0, cancelCount: 0, adr: 0 };
-    cur.nights += Number(r.nights) || 0;
+    cur.nights += roomNights(r);
     if (r.status === 'Cancelled') {
       cur.cancelCount += 1;
     } else {
@@ -139,7 +171,7 @@ function aggregateByArrival(records: PickupRecord[]): Map<string, DayAgg> {
   for (const v of map.values()) {
     const confirmedNights = records
       .filter((r) => r.arrival_date === v.date && r.status !== 'Cancelled')
-      .reduce((s, r) => s + (Number(r.nights) || 0), 0);
+      .reduce((s, r) => s + roomNights(r), 0);
     v.adr = confirmedNights > 0 ? v.revenue / confirmedNights : 0;
   }
   return map;
@@ -246,10 +278,11 @@ export function PUReportPage() {
         const roomRevenue = Number(String(raw['Room Revenue'] ?? raw['room_revenue'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
         const status = String(raw['Status'] ?? raw['status'] ?? '').trim();
         const bookedRaw = raw['BookedDatetime'] ?? raw['booked_datetime'] ?? raw['Booked Datetime'] ?? '';
+        const quantity = Number(String(raw['Quantity'] ?? raw['quantity'] ?? raw['Qty'] ?? '1').replace(/[^\d.-]/g, '')) || 1;
 
         const arrDate = excelSerialToDate(arrivalRaw);
         const depDate = excelSerialToDate(departureRaw);
-        const bookedDate = bookedRaw instanceof Date ? bookedRaw : excelSerialToDate(bookedRaw);
+        const bookedDate = bookedRaw instanceof Date ? bookedRaw : parseBookedDateTime(bookedRaw);
 
         if (!bookingId || !arrDate || !depDate) {
           skipped++;
@@ -269,6 +302,7 @@ export function PUReportPage() {
           status: status || 'Confirmed',
           booked_datetime: bookedDate ? bookedDate.toISOString() : null,
           created_at: new Date().toISOString(),
+          quantity,
         });
       }
 
@@ -321,6 +355,7 @@ export function PUReportPage() {
         room_revenue: p.room_revenue,
         status: p.status,
         booked_datetime: p.booked_datetime,
+        quantity: p.quantity,
       }));
       const { error: insErr } = await supabase.from('pickup_records').insert(rows);
       if (insErr) {
@@ -360,13 +395,16 @@ export function PUReportPage() {
     return Array.from(set).sort();
   }, [records]);
 
-  // ---------- Filtered records by mode + date range + source + room types ----------
+  // ---------- Filtered records by mode + date range (BookedDatetime) + source + room types ----------
   const filtered = useMemo(() => {
     return records.filter((r) => {
       if (mode === 'net' && r.status !== 'Confirmed') return false;
       if (mode === 'cancel' && r.status !== 'Cancelled') return false;
-      if (fromDate && r.arrival_date && r.arrival_date < fromDate) return false;
-      if (toDate && r.arrival_date && r.arrival_date > toDate) return false;
+      // Date filter range applies to BookedDatetime
+      const booked = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
+      const bookedISO = booked ? toISODate(booked) : '';
+      if (fromDate && bookedISO && bookedISO < fromDate) return false;
+      if (toDate && bookedISO && bookedISO > toDate) return false;
       if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
       if (roomTypeFilter.length > 0 && !roomTypeFilter.includes(r.room_type || '')) return false;
       return true;
@@ -396,12 +434,12 @@ export function PUReportPage() {
     }
     const getLine = (dateISO: string): string => {
       const a = agg.get(dateISO);
-      if (!a) return '0 đêm — ADR: 0đ — Doanh thu: 0đ — Cancellation: 0';
-      return `${a.nights} đêm — ADR: ${formatVND(Math.round(a.adr))} — Doanh thu: ${formatVND(Math.round(a.revenue))} — Cancellation: ${a.cancelCount}`;
+      if (!a) return '0 phòng — ADR: 0đ — Doanh thu: 0đ — Cancellation: 0';
+      return `${a.nights} phòng — ADR: ${formatVND(Math.round(a.adr))} — Doanh thu: ${formatVND(Math.round(a.revenue))} — Cancellation: ${a.cancelCount}`;
     };
     return {
       top: top
-        ? `${toDMY(top.date)} | ${top.nights} đêm — ADR: ${formatVND(Math.round(top.adr))} — Doanh thu: ${formatVND(Math.round(top.revenue))} — Cancellation: ${top.cancelCount}`
+        ? `${toDMY(top.date)} | ${top.nights} phòng — ADR: ${formatVND(Math.round(top.adr))} — Doanh thu: ${formatVND(Math.round(top.revenue))} — Cancellation: ${top.cancelCount}`
         : '—',
       today: getLine(todayISO),
       tomorrow: getLine(tomorrowISO),
@@ -425,18 +463,40 @@ export function PUReportPage() {
   const safePage = Math.min(page, totalPages);
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // ---------- Summary footer ----------
+  // ---------- Summary footer (Room Nights = quantity * nights) ----------
   const summary = useMemo(() => {
     let nights = 0;
     let revenue = 0;
     let count = 0;
     for (const r of filtered) {
       if (r.status === 'Cancelled') continue;
-      nights += Number(r.nights) || 0;
+      nights += roomNights(r);
       revenue += Number(r.room_revenue) || 0;
       count++;
     }
     return { nights, revenue, adr: nights > 0 ? revenue / nights : 0, count };
+  }, [filtered]);
+
+  // ---------- Peak booking hour analysis (uses BookedDatetime) ----------
+  const peakHour = useMemo(() => {
+    const buckets = new Map<string, { nights: number; bookings: number }>();
+    for (const r of filtered) {
+      const dt = r.booked_datetime ? parseBookedDateTime(r.booked_datetime) : null;
+      if (!dt) continue;
+      const hh = String(dt.getHours()).padStart(2, '0');
+      const key = `${hh}:00`;
+      const cur = buckets.get(key) || { nights: 0, bookings: 0 };
+      cur.nights += roomNights(r);
+      cur.bookings += 1;
+      buckets.set(key, cur);
+    }
+    let top: { hour: string; nights: number; bookings: number } | null = null;
+    for (const [hour, v] of buckets) {
+      if (!top || v.nights > top.nights) top = { hour, nights: v.nights, bookings: v.bookings };
+    }
+    if (!top) return null;
+    const endHour = String((Number(top.hour.split(':')[0]) + 1)).padStart(2, '0');
+    return { range: `${top.hour} - ${endHour}:00`, nights: top.nights, bookings: top.bookings };
   }, [filtered]);
 
   const toggleRoomType = (rt: string) => {
@@ -495,36 +555,50 @@ export function PUReportPage() {
           <span className="ml-auto text-xs text-navy-400">{records.length} dòng pickup đã lưu</span>
         </div>
 
-        {/* Hotel multi-select */}
+        {/* Hotel multi-select dropdown */}
         <div className="flex flex-wrap items-start gap-3">
           <Field label="Khách sạn (chọn một hoặc nhiều)" className="w-full max-w-md">
-            <div className="max-h-32 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white space-y-1">
-              {hotels.length === 0 && (
-                <div className="text-xs text-navy-400">Chưa có khách sạn được gán.</div>
-              )}
-              {[...hotels]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((h: Hotel) => (
-                  <label
-                    key={h.id}
-                    className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedHotelIds.includes(h.id)}
-                      onChange={() => {
-                        setSelectedHotelIds((prev) =>
-                          prev.includes(h.id)
-                            ? prev.filter((x) => x !== h.id)
-                            : [...prev, h.id],
-                        );
-                        setPage(1);
-                      }}
-                      className="accent-gold-500"
-                    />
-                    {h.name}
-                  </label>
-                ))}
+            <div className="relative">
+              <details className="group">
+                <summary className="flex items-center justify-between w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy-400 list-none">
+                  <span className="truncate">
+                    {selectedHotelIds.length === 0
+                      ? 'Chọn khách sạn…'
+                      : selectedHotelIds.length === 1
+                        ? [...hotels].find((h) => h.id === selectedHotelIds[0])?.name || '1 khách sạn'
+                        : `${selectedHotelIds.length} khách sạn đã chọn`}
+                  </span>
+                  <svg className="w-4 h-4 text-navy-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </summary>
+                <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto thin-scroll rounded-lg border border-navy-200 bg-white shadow-pop space-y-0.5 p-1.5">
+                  {hotels.length === 0 && (
+                    <div className="text-xs text-navy-400 px-2 py-1.5">Chưa có khách sạn được gán.</div>
+                  )}
+                  {[...hotels]
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((h: Hotel) => (
+                      <label
+                        key={h.id}
+                        className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedHotelIds.includes(h.id)}
+                          onChange={() => {
+                            setSelectedHotelIds((prev) =>
+                              prev.includes(h.id)
+                                ? prev.filter((x) => x !== h.id)
+                                : [...prev, h.id],
+                            );
+                            setPage(1);
+                          }}
+                          className="accent-gold-500"
+                        />
+                        {h.name}
+                      </label>
+                    ))}
+                </div>
+              </details>
             </div>
           </Field>
         </div>
@@ -552,11 +626,11 @@ export function PUReportPage() {
         </div>
         )}
 
-        {/* 24h alert box */}
+        {/* 24h overview box */}
         {isFullAccess && (
         <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-2">
           <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
-            <AlertTriangle size={16} /> Cảnh báo 24h gần nhất
+            <CalendarClock size={16} /> Tổng quan 24h gần nhất
           </div>
           <div className="text-sm text-navy-800 space-y-1.5">
             <div className="flex items-start gap-2">
@@ -584,10 +658,25 @@ export function PUReportPage() {
         </div>
         )}
 
+        {/* Peak booking hour card */}
+        {isFullAccess && peakHour && (
+        <div className="rounded-xl border border-navy-200 bg-white px-4 py-3 flex items-center gap-3">
+          <Clock size={18} className="text-navy-600 flex-shrink-0" />
+          <div className="text-sm text-navy-800">
+            <span className="text-navy-500">Khung giờ PU nhiều nhất:</span>{' '}
+            <span className="font-semibold mono-num text-navy-800">{peakHour.range}</span>
+            <span className="text-navy-400 mx-1">·</span>
+            <span className="mono-num">{peakHour.nights} phòng</span>
+            <span className="text-navy-400 mx-1">·</span>
+            <span className="mono-num">{peakHour.bookings} booking</span>
+          </div>
+        </div>
+        )}
+
         {/* Period filter bar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
           <div className="lg:col-span-3">
-            <Field label="Từ ngày (Stay Date)">
+            <Field label="Từ ngày (BookedDatetime)">
               <input
                 type="date"
                 value={fromDate}
@@ -600,7 +689,7 @@ export function PUReportPage() {
             </Field>
           </div>
           <div className="lg:col-span-3">
-            <Field label="Đến ngày (Stay Date)">
+            <Field label="Đến ngày (BookedDatetime)">
               <input
                 type="date"
                 value={toDate}
@@ -704,7 +793,7 @@ export function PUReportPage() {
                   <th className="text-left px-3 py-2 font-semibold">Thứ</th>
                   <th className="text-left px-3 py-2 font-semibold">Kênh bán (Source)</th>
                   <th className="text-left px-3 py-2 font-semibold">Loại phòng</th>
-                  <th className="text-right px-3 py-2 font-semibold">Số đêm PU</th>
+                  <th className="text-right px-3 py-2 font-semibold">Room Nights</th>
                   {isFullAccess && <th className="text-right px-3 py-2 font-semibold">Doanh thu PU</th>}
                   {isFullAccess && <th className="text-right px-3 py-2 font-semibold">ADR trung bình</th>}
                   <th className="text-left px-3 py-2 font-semibold">Trạng thái</th>
@@ -715,7 +804,7 @@ export function PUReportPage() {
                   const arrDate = r.arrival_date ? new Date(r.arrival_date + 'T00:00:00') : null;
                   const weekday = arrDate ? WEEKDAY_VI[arrDate.getDay()] : '—';
                   const isSaturday = arrDate?.getDay() === 6;
-                  const nights = Number(r.nights) || 0;
+                  const nights = roomNights(r);
                   const revenue = Number(r.room_revenue) || 0;
                   const adr = nights > 0 ? revenue / nights : 0;
                   return (
