@@ -5,12 +5,15 @@ import {
   Clock,
   CalendarDays,
   Download,
+  FileText,
   History,
   Layers,
   TrendingUp,
   Upload,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuth, canAccessFullPuReport } from '@/auth/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/components/ui';
@@ -241,6 +244,12 @@ export function PUReportPage() {
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfSelection, setPdfSelection] = useState({ block1: true, block2: true, block3: true });
+  const block1Ref = useRef<HTMLDivElement | null>(null);
+  const block2Ref = useRef<HTMLDivElement | null>(null);
+  const block3Ref = useRef<HTMLDivElement | null>(null);
 
   // Hotel filter (multi-select, no "All Hotels" option)
   const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
@@ -598,10 +607,6 @@ export function PUReportPage() {
     return Array.from(agg.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [periodRecords]);
 
-  const periodMaxNights = useMemo(() => {
-    return periodArrivalMatrix.reduce((mx, d) => Math.max(mx, d.nights), 0);
-  }, [periodArrivalMatrix]);
-
   // ---------- Pagination (uses `filtered` for the data table) ----------
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -620,6 +625,106 @@ export function PUReportPage() {
     }
     return { nights, revenue, adr: nights > 0 ? revenue / nights : 0, count };
   }, [filtered]);
+
+  const selectedHotelNames = useMemo(() => {
+    return selectedHotelIds
+      .map((id) => hotels.find((h) => h.id === id)?.name)
+      .filter(Boolean)
+      .join(', ');
+  }, [selectedHotelIds, hotels]);
+
+  const handleExportPDF = async () => {
+    if (!pdfSelection.block1 && !pdfSelection.block2 && !pdfSelection.block3) {
+      setToast({ kind: 'err', text: 'Vui lòng chọn ít nhất một khối để xuất PDF.' });
+      return;
+    }
+    setPdfExporting(true);
+    setToast({ kind: 'info', text: 'Đang tạo file PDF...' });
+    try {
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+
+      const now = new Date();
+      const ts = `${toDMY(toISODate(now))} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const hotelName = selectedHotelNames || 'Tất cả khách sạn';
+
+      const renderHeader = () => {
+        pdf.setFillColor(26, 31, 59);
+        pdf.rect(0, 0, pageWidth, 50, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('BÁO CÁO PICKUP REPORT', margin, 22);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Khách sạn: ${hotelName}`, margin, 36);
+        pdf.text(`Xuất lúc: ${ts}`, pageWidth - margin - 120, 36);
+      };
+
+      let yCursor = 70;
+
+      const addCanvasToPDF = async (el: HTMLDivElement | null, title: string) => {
+        if (!el) return;
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        pdf.setTextColor(26, 31, 59);
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(title, margin, yCursor);
+        yCursor += 10;
+
+        if (yCursor + imgHeight > pageHeight - margin) {
+          pdf.addPage();
+          renderHeader();
+          yCursor = 70;
+        }
+        pdf.addImage(imgData, 'PNG', margin, yCursor, imgWidth, imgHeight);
+        yCursor += imgHeight + 15;
+      };
+
+      renderHeader();
+
+      if (pdfSelection.block1) {
+        await addCanvasToPDF(block1Ref.current, 'Tổng quan 24h (Real-time)');
+      }
+      if (pdfSelection.block2) {
+        if (yCursor + 100 > pageHeight - margin) {
+          pdf.addPage();
+          renderHeader();
+          yCursor = 70;
+        }
+        await addCanvasToPDF(block2Ref.current, 'Thống kê theo nguồn 24h (Real-time)');
+      }
+      if (pdfSelection.block3) {
+        if (yCursor + 100 > pageHeight - margin) {
+          pdf.addPage();
+          renderHeader();
+          yCursor = 70;
+        }
+        await addCanvasToPDF(block3Ref.current, periodHeader);
+      }
+
+      const dateStr = toISODate(now).replace(/-/g, '');
+      const safeHotel = hotelName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+      pdf.save(`Bao_Cao_Pickup_${safeHotel}_${dateStr}.pdf`);
+      setToast({ kind: 'ok', text: 'Đã xuất file PDF thành công!' });
+      setPdfModalOpen(false);
+    } catch (e) {
+      setToast({ kind: 'err', text: `Lỗi khi xuất file PDF: ${(e as Error).message}` });
+    } finally {
+      setPdfExporting(false);
+    }
+  };
 
   const toggleRoomType = (rt: string) => {
     setRoomTypeFilter((prev) => (prev.includes(rt) ? prev.filter((x) => x !== rt) : [...prev, rt]));
@@ -668,6 +773,11 @@ export function PUReportPage() {
             className="hidden"
             onChange={onFilePicked}
           />
+          {isFullAccess && (
+            <Button variant="secondary" onClick={() => setPdfModalOpen(true)} disabled={pdfExporting}>
+              <FileText size={16} /> {pdfExporting ? 'Đang tạo PDF…' : 'Xuất PDF'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={downloadSampleExcel}>
             <Download size={16} /> Tải file Excel dữ liệu mẫu
           </Button>
@@ -750,7 +860,7 @@ export function PUReportPage() {
 
         {/* ============ BLOCK 1: REAL-TIME 24H OVERVIEW ============ */}
         {isFullAccess && (
-        <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-3">
+        <div ref={block1Ref} className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-3">
           <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
             <TrendingUp size={16} /> Tổng quan 24h (Real-time)
           </div>
@@ -813,7 +923,7 @@ export function PUReportPage() {
 
         {/* ============ BLOCK 2: REAL-TIME 24H SOURCE ANALYTICS ============ */}
         {isFullAccess && (
-        <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
+        <div ref={block2Ref} className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
           <div className="flex items-center gap-2 text-navy-700 font-semibold text-sm">
             <Layers size={16} /> Thống kê theo nguồn 24h (Real-time)
           </div>
@@ -854,7 +964,7 @@ export function PUReportPage() {
 
         {/* ============ BLOCK 3: CUSTOM PERIOD ANALYTICS ============ */}
         {isFullAccess && (
-        <div className="rounded-xl border border-navy-300 bg-white p-4 space-y-4">
+        <div ref={block3Ref} className="rounded-xl border border-navy-300 bg-white p-4 space-y-4">
           <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
             <CalendarDays size={16} /> {periodHeader}
           </div>
@@ -966,8 +1076,7 @@ export function PUReportPage() {
                       <th className="text-right px-2.5 py-2 font-semibold">Room Nights</th>
                       <th className="text-right px-2.5 py-2 font-semibold">Doanh thu</th>
                       <th className="text-right px-2.5 py-2 font-semibold">ADR</th>
-                      <th className="text-right px-2.5 py-2 font-semibold">Hủy</th>
-                      <th className="text-left px-2.5 py-2 font-semibold w-1/3">Phân bổ</th>
+                      <th className="text-right px-2.5 py-2 font-semibold pr-4">Hủy</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -975,7 +1084,6 @@ export function PUReportPage() {
                       const dt = new Date(d.date + 'T00:00:00');
                       const weekday = WEEKDAY_VI[dt.getDay()] || '—';
                       const isSaturday = dt.getDay() === 6;
-                      const pct = periodMaxNights > 0 ? (d.nights / periodMaxNights) * 100 : 0;
                       return (
                         <tr key={d.date} className={`border-t border-navy-50 ${isSaturday ? 'bg-amber-50/40' : ''}`}>
                           <td className="px-2.5 py-2 mono-num text-navy-700 whitespace-nowrap">{toDMY(d.date)}</td>
@@ -983,12 +1091,7 @@ export function PUReportPage() {
                           <td className="px-2.5 py-2 text-right mono-num text-navy-700">{d.nights}</td>
                           <td className="px-2.5 py-2 text-right mono-num font-semibold text-navy-800">{formatVND(Math.round(d.revenue))}</td>
                           <td className="px-2.5 py-2 text-right mono-num text-navy-600">{formatVND(Math.round(d.adr))}</td>
-                          <td className="px-2.5 py-2 text-right mono-num text-red-600">{d.cancelCount}</td>
-                          <td className="px-2.5 py-2">
-                            <div className="h-2 bg-navy-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-gold-500 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                          </td>
+                          <td className="px-2.5 py-2 text-right mono-num text-red-600 pr-4">{d.cancelCount}</td>
                         </tr>
                       );
                     })}
@@ -1192,6 +1295,65 @@ export function PUReportPage() {
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setHistoryOpen(false)}>
               Đóng
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* PDF Export Modal */}
+      <Modal
+        open={pdfModalOpen}
+        onClose={() => !pdfExporting && setPdfModalOpen(false)}
+        title="Tùy Chọn Xuất Báo Cáo PDF"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button variant="subtle" size="sm" onClick={() => setPdfSelection({ block1: true, block2: true, block3: true })}>
+              Chọn tất cả
+            </Button>
+            <Button variant="subtle" size="sm" onClick={() => setPdfSelection({ block1: false, block2: false, block3: false })}>
+              Bỏ chọn
+            </Button>
+          </div>
+          <div className="space-y-2.5">
+            <label className="flex items-center gap-3 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded-lg px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={pdfSelection.block1}
+                onChange={(e) => setPdfSelection((p) => ({ ...p, block1: e.target.checked }))}
+                className="accent-gold-500 w-4 h-4"
+              />
+              <TrendingUp size={16} className="text-gold-600" />
+              Tổng quan 24h (Real-time)
+            </label>
+            <label className="flex items-center gap-3 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded-lg px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={pdfSelection.block2}
+                onChange={(e) => setPdfSelection((p) => ({ ...p, block2: e.target.checked }))}
+                className="accent-gold-500 w-4 h-4"
+              />
+              <Layers size={16} className="text-navy-600" />
+              Thống kê theo nguồn 24h (Real-time)
+            </label>
+            <label className="flex items-center gap-3 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded-lg px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={pdfSelection.block3}
+                onChange={(e) => setPdfSelection((p) => ({ ...p, block3: e.target.checked }))}
+                className="accent-gold-500 w-4 h-4"
+              />
+              <CalendarDays size={16} className="text-navy-600" />
+              Thống kê theo giai đoạn đặt
+            </label>
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-navy-100">
+            <Button variant="secondary" onClick={() => setPdfModalOpen(false)} disabled={pdfExporting}>
+              Hủy
+            </Button>
+            <Button variant="gold" onClick={handleExportPDF} disabled={pdfExporting}>
+              <FileText size={16} /> {pdfExporting ? 'Đang tạo PDF…' : 'Xuất PDF ngay'}
             </Button>
           </div>
         </div>
