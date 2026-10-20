@@ -33,6 +33,12 @@ interface PickupImportLog {
   imported_at: string;
 }
 
+interface AppUserInfo {
+  id: string;
+  username: string;
+  email: string | null;
+}
+
 interface PickupRecord {
   id: string;
   import_id: string | null;
@@ -151,8 +157,11 @@ export function PUReportPage() {
   const [toast, setToast] = useState<Toast>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // Hotel filter
-  const [hotelId, setHotelId] = useState('all');
+  // Hotel filter (multi-select, no "All Hotels" option)
+  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
+
+  // User lookup for upload history
+  const [userMap, setUserMap] = useState<Map<string, AppUserInfo>>(new Map());
 
   // Filters
   const [mode, setMode] = useState<Mode>('gross');
@@ -170,17 +179,29 @@ export function PUReportPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     let recQuery = supabase.from('pickup_records').select('*').order('created_at', { ascending: false }).limit(2000);
-    if (hotelId !== 'all') {
-      recQuery = recQuery.eq('hotel_id', hotelId);
+    if (selectedHotelIds.length > 0) {
+      recQuery = recQuery.in('hotel_id', selectedHotelIds);
     }
-    const [r, l] = await Promise.all([
+    const [r, l, u] = await Promise.all([
       recQuery,
       supabase.from('pickup_import_logs').select('*').order('imported_at', { ascending: false }).limit(200),
+      supabase.from('app_users').select('id, username, email'),
     ]);
     setRecords((r.data as PickupRecord[]) || []);
     setLogs((l.data as PickupImportLog[]) || []);
+    const um = new Map<string, AppUserInfo>();
+    ((u.data as AppUserInfo[]) || []).forEach((usr) => um.set(usr.id, usr));
+    setUserMap(um);
     setLoading(false);
-  }, [hotelId]);
+  }, [selectedHotelIds]);
+
+  // Default hotel selection: first assigned hotel sorted alphabetically
+  useEffect(() => {
+    if (hotels.length > 0 && selectedHotelIds.length === 0) {
+      const sorted = [...hotels].sort((a, b) => a.name.localeCompare(b.name));
+      setSelectedHotelIds([sorted[0].id]);
+    }
+  }, [hotels, selectedHotelIds]);
 
   useEffect(() => {
     loadAll();
@@ -289,7 +310,7 @@ export function PUReportPage() {
       // 3. Append records (never overwrite)
       const rows = parsed.map((p) => ({
         import_id: importId,
-        hotel_id: hotelId !== 'all' ? hotelId : null,
+        hotel_id: selectedHotelIds.length === 1 ? selectedHotelIds[0] : (selectedHotelIds.length > 0 ? selectedHotelIds[0] : null),
         booking_id: p.booking_id,
         source: p.source,
         arrival_date: p.arrival_date,
@@ -474,26 +495,38 @@ export function PUReportPage() {
           <span className="ml-auto text-xs text-navy-400">{records.length} dòng pickup đã lưu</span>
         </div>
 
-        {/* Hotel selector */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="w-64">
-            <Field label="Khách sạn (Hotel)">
-              <Select
-                value={hotelId}
-                onChange={(v) => {
-                  setHotelId(v);
-                  setPage(1);
-                }}
-              >
-                <option value="all">Tất cả khách sạn</option>
-                {hotels.map((h: Hotel) => (
-                  <option key={h.id} value={h.id}>
+        {/* Hotel multi-select */}
+        <div className="flex flex-wrap items-start gap-3">
+          <Field label="Khách sạn (chọn một hoặc nhiều)" className="w-full max-w-md">
+            <div className="max-h-32 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white space-y-1">
+              {hotels.length === 0 && (
+                <div className="text-xs text-navy-400">Chưa có khách sạn được gán.</div>
+              )}
+              {[...hotels]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((h: Hotel) => (
+                  <label
+                    key={h.id}
+                    className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedHotelIds.includes(h.id)}
+                      onChange={() => {
+                        setSelectedHotelIds((prev) =>
+                          prev.includes(h.id)
+                            ? prev.filter((x) => x !== h.id)
+                            : [...prev, h.id],
+                        );
+                        setPage(1);
+                      }}
+                      className="accent-gold-500"
+                    />
                     {h.name}
-                  </option>
+                  </label>
                 ))}
-              </Select>
-            </Field>
-          </div>
+            </div>
+          </Field>
         </div>
 
         {/* Mode selector */}
@@ -797,7 +830,16 @@ export function PUReportPage() {
                       <td className="px-3 py-2.5 mono-num text-navy-600 text-xs whitespace-nowrap">
                         {new Date(l.imported_at).toLocaleString('vi-VN')}
                       </td>
-                      <td className="px-3 py-2.5 text-navy-700 text-xs">{l.user_email || '—'}</td>
+                      <td className="px-3 py-2.5 text-navy-700 text-xs">
+                        {(() => {
+                          if (l.user_email) return l.user_email;
+                          if (l.user_id) {
+                            const usr = userMap.get(l.user_id);
+                            if (usr) return usr.email || usr.username;
+                          }
+                          return '—';
+                        })()}
+                      </td>
                       <td className="px-3 py-2.5 text-navy-700 text-xs">{l.file_name}</td>
                       <td className="px-3 py-2.5 text-right mono-num font-semibold text-navy-800">
                         {l.total_rows}
