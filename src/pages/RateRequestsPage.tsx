@@ -5,18 +5,9 @@ import { useRoomTypes } from '@/lib/useRoomTypes';
 import type { Hotel, PriceMatrix, RateChangeRequest, RoomType } from '@/types';
 import { Button, Select, Card, Field, Badge, EmptyState, Modal, Input } from '@/components/ui';
 import { normCode, toDMY, dateRangeISO, toISODate } from '@/lib/format';
-import { sendTelegramMessage } from '@/services/telegramService';
+import { sendTelegramMessage, sendRateRequestTelegramNotification } from '@/services/telegramService';
 
 type Toast = { kind: 'ok' | 'err' | 'info'; text: string } | null;
-
-function fmtDateTime(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-}
 
 export function RateRequestsPage() {
   const { user, hotels, allHotels } = useAuth();
@@ -136,24 +127,33 @@ export function RateRequestsPage() {
       setSubmitting(false);
       return;
     }
-    // Notify admin via Telegram
+    // Notify admin via Telegram (non-blocking — DB insert already succeeded)
     const hotelName = hotelNameById(formHotelId);
-    const dynSummary = isDynamic
-      ? `<b>Loại phòng:</b> ${selectedRoomTypeIds
+    const effectiveDate = `${toDMY(startDate)} → ${toDMY(endDate)}`;
+    const roomTypeSummary = isDynamic
+      ? selectedRoomTypeIds
           .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
-          .join(', ')}\n` +
-        `<b>Giá bán:</b> ${dynSell || '—'}đ · <b>Giá thu về:</b> ${dynNet || '—'}đ · <b>Giá B2B:</b> ${dynB2b || '—'}đ\n`
-      : '';
-    await sendTelegramMessage(
-      `<b>🚨 YÊU CẦU CHỈNH GIÁ MỚI</b>\n` +
-        `<b>Khách sạn:</b> ${hotelName}\n` +
-        `<b>Mã giá:</b> ${rateCode}\n` +
-        dynSummary +
-        `<b>Giai đoạn:</b> ${toDMY(startDate)} đến ${toDMY(endDate)}\n` +
-        `<b>Người tạo:</b> ${user?.username || '—'}\n` +
-        `<b>Thời gian:</b> ${fmtDateTime(new Date())}`,
-    );
-    setFormMsg({ kind: 'ok', text: 'Đã gửi yêu cầu thành công. Admin sẽ nhận thông báo qua Telegram.' });
+          .join(', ')
+      : rateCode;
+    const oldRate = null;
+    const newRate = isDynamic
+      ? [dynSell, dynNet, dynB2b].filter((v) => v !== '').join(' / ') || null
+      : null;
+    try {
+      await sendRateRequestTelegramNotification({
+        hotel_name: hotelName,
+        room_type: roomTypeSummary,
+        effective_date: effectiveDate,
+        old_rate: oldRate,
+        new_rate: newRate,
+        requested_by: user?.username || '—',
+        reason: isDynamic ? 'Yêu cầu giá Dynamic' : `Áp dụng mã giá ${rateCode}`,
+        created_at: new Date().toISOString(),
+      });
+    } catch {
+      // non-blocking — notification failure should not affect the DB insert
+    }
+    setFormMsg({ kind: 'ok', text: 'Đã tạo yêu cầu chỉnh giá và gửi thông báo Telegram thành công!' });
     if (isDynamic) {
       setSelectedRoomTypeIds([]);
       setDynSell('');
