@@ -845,7 +845,7 @@ export function PUReportPage() {
         {/* Period filter bar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
           <div className="lg:col-span-3">
-            <Field label="Từ ngày (BookedDatetime)">
+            <Field label="Từ ngày đặt">
               <input
                 type="date"
                 value={fromDate}
@@ -858,7 +858,7 @@ export function PUReportPage() {
             </Field>
           </div>
           <div className="lg:col-span-3">
-            <Field label="Đến ngày (BookedDatetime)">
+            <Field label="Đến ngày đặt">
               <input
                 type="date"
                 value={toDate}
