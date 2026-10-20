@@ -156,15 +156,23 @@ export function RateRequestsPage() {
     } catch {
       // non-blocking — notification failure should not affect the DB insert
     }
-    setFormMsg({ kind: 'ok', text: 'Đã tạo yêu cầu chỉnh giá và gửi thông báo Telegram thành công!' });
-    if (isDynamic) {
-      setSelectedRoomTypeIds([]);
-      setDynSell('');
-      setDynNet('');
-      setDynB2b('');
-    }
+    setFormMsg({ kind: 'ok', text: 'Gửi yêu cầu chỉnh giá thành công! Bạn có thể tạo tiếp yêu cầu mới.' });
+    setToast({ kind: 'ok', text: 'Gửi yêu cầu chỉnh giá thành công! Bạn có thể tạo tiếp yêu cầu mới.' });
+    // Full form reset for consecutive submissions
+    setSelectedRoomTypeIds([]);
+    setDynSell('');
+    setDynNet('');
+    setDynB2b('');
+    setStartDate(toISODate(new Date()));
+    setEndDate(toISODate(new Date()));
     setSubmitting(false);
     await loadRequests();
+    // Scroll back to top of form for next entry
+    try {
+      document.querySelector('[data-rate-request-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {
+      // ignore
+    }
   };
 
   // ---------- Approve & Apply ----------
@@ -393,6 +401,13 @@ export function RateRequestsPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Auto-dismiss form message
+  useEffect(() => {
+    if (!formMsg) return;
+    const t = setTimeout(() => setFormMsg(null), 5000);
+    return () => clearTimeout(t);
+  }, [formMsg]);
+
   const pendingCount = useMemo(
     () => requests.filter((r) => r.status === 'Pending').length,
     [requests],
@@ -416,7 +431,7 @@ export function RateRequestsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Form tạo yêu cầu */}
-        <Card className="p-4 lg:col-span-1">
+        <Card className="p-4 lg:col-span-1" data-rate-request-form>
           <h2 className="text-base font-semibold text-navy-800 mb-3">Tạo yêu cầu chỉnh giá</h2>
           <div className="space-y-3">
             <Field label="Khách sạn">
