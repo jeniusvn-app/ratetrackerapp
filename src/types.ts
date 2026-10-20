@@ -78,4 +78,7 @@ export interface RateChangeRequest {
   selling_price: number | null;
   net_price: number | null;
   b2b_price: number | null;
+  rejection_reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
 }

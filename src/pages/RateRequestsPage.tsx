@@ -34,6 +34,9 @@ export function RateRequestsPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const [confirm, setConfirm] = useState<RateChangeRequest | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<RateChangeRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
 
   const { roomTypes } = useRoomTypes(formHotelId || null);
   const [rateCodes, setRateCodes] = useState<string[]>([]);
@@ -326,22 +329,55 @@ export function RateRequestsPage() {
   };
 
   // ---------- Reject ----------
-  const reject = async (req: RateChangeRequest) => {
-    setActingId(req.id);
+  const openRejectModal = (req: RateChangeRequest) => {
+    setRejectTarget(req);
+    setRejectReason('');
+  };
+  const closeRejectModal = () => {
+    setRejectTarget(null);
+    setRejectReason('');
+    setRejecting(false);
+  };
+  const confirmReject = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      setToast({ kind: 'err', text: 'Vui lòng nhập lý do từ chối.' });
+      return;
+    }
+    setRejecting(true);
     setToast(null);
-    await supabase
+    const { error } = await supabase
       .from('rate_change_requests')
-      .update({ status: 'Rejected' })
-      .eq('id', req.id);
-    await sendTelegramMessage(
-      `<b>❌ YÊU CẦU CHỈNH GIÁ BỊ TỪ CHỐI</b>\n` +
-        `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
-        `<b>Mã giá:</b> ${req.rate_code}\n` +
-        `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}`,
-    );
-    setToast({ kind: 'info', text: 'Đã từ chối yêu cầu và gửi thông báo qua Telegram.' });
+      .update({
+        status: 'Rejected',
+        rejection_reason: rejectReason.trim(),
+        reviewed_by: user?.id ?? null,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', rejectTarget.id);
+    if (error) {
+      setToast({ kind: 'err', text: `Lỗi khi cập nhật trạng thái: ${error.message}` });
+      setRejecting(false);
+      return;
+    }
+    // Telegram notification (non-blocking)
+    try {
+      const roomTypeSummary = rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids)
+        ? rejectTarget.room_type_ids.map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8)).join(', ')
+        : rejectTarget.rate_code;
+      await sendTelegramMessage(
+        `❌ <b>YÊU CẦU CHỈNH GIÁ ĐÃ BỊ TỪ CHỐI</b>\n` +
+          `• Khách sạn: <b>${hotelNameById(rejectTarget.hotel_id)}</b>\n` +
+          `• Loại phòng: <b>${roomTypeSummary}</b>\n` +
+          `• Giai đoạn: ${toDMY(rejectTarget.start_date)} → ${toDMY(rejectTarget.end_date)}\n` +
+          `• Lý do từ chối: <i>${rejectReason.trim()}</i>`,
+      );
+    } catch {
+      // non-blocking
+    }
+    setToast({ kind: 'ok', text: 'Đã từ chối yêu cầu chỉnh giá!' });
+    closeRejectModal();
     await loadRequests();
-    setActingId(null);
   };
 
   const statusBadge = (s: string) => {
@@ -546,7 +582,14 @@ export function RateRequestsPage() {
                       <td className="px-3 py-2.5 text-navy-600 text-xs">
                         {r.created_by_user_id ? r.created_by_user_id.slice(0, 8) : '—'}
                       </td>
-                      <td className="px-3 py-2.5">{statusBadge(r.status)}</td>
+                      <td className="px-3 py-2.5">
+                        {statusBadge(r.status)}
+                        {r.status === 'Rejected' && r.rejection_reason && (
+                          <div className="mt-1 text-xs text-red-600 italic max-w-xs">
+                            Lý do: {r.rejection_reason}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 mono-num text-navy-500 text-xs whitespace-nowrap">
                         {new Date(r.created_at).toLocaleString('vi-VN')}
                       </td>
@@ -565,7 +608,7 @@ export function RateRequestsPage() {
                               <Button
                                 variant="danger"
                                 size="sm"
-                                onClick={() => reject(r)}
+                                onClick={() => openRejectModal(r)}
                                 disabled={actingId === r.id}
                               >
                                 Từ chối
@@ -654,6 +697,63 @@ export function RateRequestsPage() {
                 disabled={actingId === confirm.id}
               >
                 {actingId === confirm.id ? 'Đang áp dụng…' : 'Duyệt & Áp dụng giá'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Rejection modal */}
+      <Modal
+        open={!!rejectTarget}
+        onClose={closeRejectModal}
+        title="Từ Chối Yêu Cầu Chỉnh Giá"
+        maxWidth="max-w-md"
+      >
+        {rejectTarget && (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-navy-50 border border-navy-100 p-3 text-sm space-y-1">
+              <div>
+                <span className="text-navy-500">Khách sạn:</span>{' '}
+                <span className="font-semibold text-navy-800">{hotelNameById(rejectTarget.hotel_id)}</span>
+              </div>
+              <div>
+                <span className="text-navy-500">Mã giá:</span>{' '}
+                <span className="font-semibold text-navy-800">{rejectTarget.rate_code}</span>
+              </div>
+              {rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids) && (
+                <div>
+                  <span className="text-navy-500">Loại phòng:</span>{' '}
+                  <span className="text-navy-800">
+                    {rejectTarget.room_type_ids
+                      .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
+                      .join(', ')}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="text-navy-500">Giai đoạn:</span>{' '}
+                <span className="mono-num text-navy-800">
+                  {toDMY(rejectTarget.start_date)} → {toDMY(rejectTarget.end_date)}
+                </span>
+              </div>
+            </div>
+            <Field label="Lý do từ chối *" hint="Bắt buộc — ví dụ: Mức giá quá thấp so với khung giá sàn, Đã hết quỹ phòng…">
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Nhập lý do từ chối…"
+                rows={3}
+                className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400 resize-none"
+                autoFocus
+              />
+            </Field>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="secondary" onClick={closeRejectModal}>
+                Hủy bỏ
+              </Button>
+              <Button variant="danger" onClick={confirmReject} disabled={rejecting}>
+                {rejecting ? 'Đang xử lý…' : 'Xác nhận Từ chối'}
               </Button>
             </div>
           </div>
