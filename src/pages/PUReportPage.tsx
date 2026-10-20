@@ -10,7 +10,10 @@ import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/components/ui';
-import { formatVND, formatVNDNumber, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
+import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
+import type { Hotel } from '@/types';
+
+const STORAGE_BUCKET = 'pickup-reports';
 
 /**
  * Page 5 — PU Report (Pickup Report).
@@ -137,7 +140,7 @@ function aggregateByArrival(records: PickupRecord[]): Map<string, DayAgg> {
 }
 
 export function PUReportPage() {
-  const { user } = useAuth();
+  const { user, hotels } = useAuth();
 
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [logs, setLogs] = useState<PickupImportLog[]>([]);
@@ -145,6 +148,9 @@ export function PUReportPage() {
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Hotel filter
+  const [hotelId, setHotelId] = useState('all');
 
   // Filters
   const [mode, setMode] = useState<Mode>('gross');
@@ -161,14 +167,18 @@ export function PUReportPage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
+    let recQuery = supabase.from('pickup_records').select('*').order('created_at', { ascending: false }).limit(2000);
+    if (hotelId !== 'all') {
+      recQuery = recQuery.eq('hotel_id', hotelId);
+    }
     const [r, l] = await Promise.all([
-      supabase.from('pickup_records').select('*').order('created_at', { ascending: false }).limit(2000),
+      recQuery,
       supabase.from('pickup_import_logs').select('*').order('imported_at', { ascending: false }).limit(200),
     ]);
     setRecords((r.data as PickupRecord[]) || []);
     setLogs((l.data as PickupImportLog[]) || []);
     setLoading(false);
-  }, []);
+  }, [hotelId]);
 
   useEffect(() => {
     loadAll();
@@ -245,7 +255,19 @@ export function PUReportPage() {
         return;
       }
 
-      // 1. Insert import log (audit trail)
+      // 1. Upload file to Storage bucket (audit archive)
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'xlsx';
+      const storagePath = `${new Date().toISOString().replace(/[:.]/g, '-')}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream' });
+      if (uploadErr) {
+        setToast({ kind: 'err', text: `Lỗi lưu file vào bucket: ${uploadErr.message}` });
+        setImporting(false);
+        return;
+      }
+
+      // 2. Insert import log (audit trail)
       const { data: logData, error: logErr } = await supabase
         .from('pickup_import_logs')
         .insert({
@@ -263,9 +285,10 @@ export function PUReportPage() {
       }
       const importId = (logData as PickupImportLog).id;
 
-      // 2. Append records (never overwrite)
+      // 3. Append records (never overwrite)
       const rows = parsed.map((p) => ({
         import_id: importId,
+        hotel_id: hotelId !== 'all' ? hotelId : null,
         booking_id: p.booking_id,
         source: p.source,
         arrival_date: p.arrival_date,
@@ -448,6 +471,28 @@ export function PUReportPage() {
             <History size={16} /> Lịch sử cập nhật
           </Button>
           <span className="ml-auto text-xs text-navy-400">{records.length} dòng pickup đã lưu</span>
+        </div>
+
+        {/* Hotel selector */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-64">
+            <Field label="Khách sạn (Hotel)">
+              <Select
+                value={hotelId}
+                onChange={(v) => {
+                  setHotelId(v);
+                  setPage(1);
+                }}
+              >
+                <option value="all">Tất cả khách sạn</option>
+                {hotels.map((h: Hotel) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
         </div>
 
         {/* Mode selector */}

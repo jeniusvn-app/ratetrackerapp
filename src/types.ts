@@ -8,6 +8,8 @@ export interface AppUser {
   role: Role;
   allowed_hotel_ids: string[]; // ["*"] for admin
   can_access_pu_report: boolean;
+  can_upload_pu_only: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
