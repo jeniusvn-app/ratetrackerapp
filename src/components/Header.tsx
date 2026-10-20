@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth, isAdmin, canAccessPuReport } from '@/auth/AuthContext';
+import { useAuth, isAdmin, canAccessPuReport, canUploadPuOnly } from '@/auth/AuthContext';
 import { Logo } from '@/components/Logo';
 import { Button, Badge } from '@/components/ui';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
@@ -36,7 +36,7 @@ export function Header({
 
   const visibleNav = NAV.filter((n) => {
     if (!n.restricted) return true;
-    if (n.key === 'pu_report') return canAccessPuReport(user);
+    if (n.key === 'pu_report') return canAccessPuReport(user) || canUploadPuOnly(user);
     return isAdmin(user);
   });
 

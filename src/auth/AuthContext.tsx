@@ -121,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) return { ok: false, error: error.message };
       if (!data) return { ok: false, error: 'Tài khoản không tồn tại' };
       if (data.password !== password) return { ok: false, error: 'Mật khẩu không đúng' };
+      if (data.is_active === false) return { ok: false, error: 'Tài khoản đã bị vô hiệu hóa' };
       setUser(data as AppUser);
       writeSession(data.id);
       await refreshHotels();
@@ -183,6 +184,14 @@ export function isAdmin(u: AppUser | null): boolean {
 }
 
 export function canAccessPuReport(u: AppUser | null): boolean {
+  return !!u && (u.role === 'admin' || u.can_access_pu_report === true);
+}
+
+export function canUploadPuOnly(u: AppUser | null): boolean {
+  return !!u && u.role !== 'admin' && u.can_upload_pu_only === true && u.can_access_pu_report !== true;
+}
+
+export function canAccessFullPuReport(u: AppUser | null): boolean {
   return !!u && (u.role === 'admin' || u.can_access_pu_report === true);
 }
 

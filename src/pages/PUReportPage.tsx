@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/auth/AuthContext';
+import { useAuth, canAccessFullPuReport } from '@/auth/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/components/ui';
 import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import type { Hotel } from '@/types';
@@ -141,6 +141,8 @@ function aggregateByArrival(records: PickupRecord[]): Map<string, DayAgg> {
 
 export function PUReportPage() {
   const { user, hotels } = useAuth();
+  const isFullAccess = canAccessFullPuReport(user);
+  const isUploadOnly = !isFullAccess && !!user && user.can_upload_pu_only === true;
 
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [logs, setLogs] = useState<PickupImportLog[]>([]);
@@ -256,7 +258,6 @@ export function PUReportPage() {
       }
 
       // 1. Upload file to Storage bucket (audit archive)
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'xlsx';
       const storagePath = `${new Date().toISOString().replace(/[:.]/g, '-')}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from(STORAGE_BUCKET)
@@ -496,6 +497,7 @@ export function PUReportPage() {
         </div>
 
         {/* Mode selector */}
+        {isFullAccess && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-navy-700 uppercase tracking-wide">Chế độ xem</span>
           <div className="inline-flex bg-navy-50 rounded-lg p-1 gap-1">
@@ -515,8 +517,10 @@ export function PUReportPage() {
             ))}
           </div>
         </div>
+        )}
 
         {/* 24h alert box */}
+        {isFullAccess && (
         <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-2">
           <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
             <AlertTriangle size={16} /> Cảnh báo 24h gần nhất
@@ -545,6 +549,7 @@ export function PUReportPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Period filter bar */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
@@ -618,10 +623,12 @@ export function PUReportPage() {
         </div>
 
         {/* Period summary */}
+        {isFullAccess && (
         <div className="rounded-lg bg-navy-50 border border-navy-100 px-4 py-3 text-sm text-navy-700">
           <span className="text-navy-500">Top ngày được đặt nhiều nhất trong giai đoạn:</span>{' '}
           <span className="font-semibold mono-num text-navy-800">{periodSummary}</span>
         </div>
+        )}
       </Card>
 
       {/* ============ SECTION 2: DATA MATRIX TABLE ============ */}
@@ -665,8 +672,8 @@ export function PUReportPage() {
                   <th className="text-left px-3 py-2 font-semibold">Kênh bán (Source)</th>
                   <th className="text-left px-3 py-2 font-semibold">Loại phòng</th>
                   <th className="text-right px-3 py-2 font-semibold">Số đêm PU</th>
-                  <th className="text-right px-3 py-2 font-semibold">Doanh thu PU</th>
-                  <th className="text-right px-3 py-2 font-semibold">ADR trung bình</th>
+                  {isFullAccess && <th className="text-right px-3 py-2 font-semibold">Doanh thu PU</th>}
+                  {isFullAccess && <th className="text-right px-3 py-2 font-semibold">ADR trung bình</th>}
                   <th className="text-left px-3 py-2 font-semibold">Trạng thái</th>
                 </tr>
               </thead>
@@ -695,12 +702,16 @@ export function PUReportPage() {
                       <td className="px-3 py-2.5 text-navy-700">{r.source || '—'}</td>
                       <td className="px-3 py-2.5 text-navy-700">{r.room_type || '—'}</td>
                       <td className="px-3 py-2.5 text-right mono-num text-navy-700">{nights}</td>
-                      <td className="px-3 py-2.5 text-right mono-num font-semibold text-navy-800">
-                        {formatVND(revenue)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right mono-num text-navy-600">
-                        {formatVND(Math.round(adr))}
-                      </td>
+                      {isFullAccess && (
+                        <td className="px-3 py-2.5 text-right mono-num font-semibold text-navy-800">
+                          {formatVND(revenue)}
+                        </td>
+                      )}
+                      {isFullAccess && (
+                        <td className="px-3 py-2.5 text-right mono-num text-navy-600">
+                          {formatVND(Math.round(adr))}
+                        </td>
+                      )}
                       <td className="px-3 py-2.5">
                         {r.status === 'Cancelled' ? (
                           <Badge tone="red">Cancelled</Badge>
@@ -714,12 +725,16 @@ export function PUReportPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-navy-100 bg-navy-50/60 font-semibold">
-                  <td colSpan={5} className="px-3 py-3 text-navy-700 text-sm">
+                  <td colSpan={isFullAccess ? 5 : 4} className="px-3 py-3 text-navy-700 text-sm">
                     Tổng cộng ({summary.count} booking confirmed)
                   </td>
                   <td className="px-3 py-3 text-right mono-num text-navy-800">{summary.nights}</td>
-                  <td className="px-3 py-3 text-right mono-num text-navy-800">{formatVND(Math.round(summary.revenue))}</td>
-                  <td className="px-3 py-3 text-right mono-num text-gold-600">{formatVND(Math.round(summary.adr))}</td>
+                  {isFullAccess && (
+                    <td className="px-3 py-3 text-right mono-num text-navy-800">{formatVND(Math.round(summary.revenue))}</td>
+                  )}
+                  {isFullAccess && (
+                    <td className="px-3 py-3 text-right mono-num text-gold-600">{formatVND(Math.round(summary.adr))}</td>
+                  )}
                   <td className="px-3 py-3" />
                 </tr>
               </tfoot>

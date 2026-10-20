@@ -16,6 +16,9 @@ export interface AppUser {
 export interface Hotel {
   id: string;
   name: string;
+  code: string | null;
+  address: string | null;
+  is_active: boolean;
   created_at: string;
 }
 

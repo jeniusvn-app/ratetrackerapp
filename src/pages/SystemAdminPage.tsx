@@ -30,6 +30,7 @@ import {
   Select,
 } from '@/components/ui';
 import { formatVND, normCode } from '@/lib/format';
+import { canAccessFullPuReport } from '@/auth/AuthContext';
 
 type TabKey = 'hotels' | 'matrix' | 'users';
 
@@ -111,6 +112,8 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
 
   const [hotelEdit, setHotelEdit] = useState<Hotel | null>(null);
   const [hotelName, setHotelName] = useState('');
+  const [hotelCode, setHotelCode] = useState('');
+  const [hotelAddress, setHotelAddress] = useState('');
   const [hotelSaving, setHotelSaving] = useState(false);
 
   const [rtName, setRtName] = useState('');
@@ -134,10 +137,14 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
   const openAddHotel = () => {
     setHotelEdit(null);
     setHotelName('');
+    setHotelCode('');
+    setHotelAddress('');
   };
   const openEditHotel = (h: Hotel) => {
     setHotelEdit(h);
     setHotelName(h.name);
+    setHotelCode(h.code || '');
+    setHotelAddress(h.address || '');
   };
   const saveHotel = async () => {
     if (!hotelName.trim()) {
@@ -145,22 +152,41 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
       return;
     }
     setHotelSaving(true);
-    if (hotelEdit) {
-      const { error } = await supabase
-        .from('hotels')
-        .update({ name: hotelName.trim() })
-        .eq('id', hotelEdit.id);
-      if (error) onToast({ kind: 'err', text: `Lỗi: ${error.message}` });
-      else onToast({ kind: 'ok', text: 'Đã cập nhật khách sạn.' });
-    } else {
-      const { error } = await supabase.from('hotels').insert({ name: hotelName.trim() });
-      if (error) onToast({ kind: 'err', text: `Lỗi: ${error.message}` });
-      else onToast({ kind: 'ok', text: 'Đã thêm khách sạn mới.' });
+    try {
+      if (hotelEdit) {
+        const { error } = await supabase
+          .from('hotels')
+          .update({
+            name: hotelName.trim(),
+            code: hotelCode.trim() || null,
+            address: hotelAddress.trim() || null,
+          })
+          .eq('id', hotelEdit.id);
+        if (error) {
+          onToast({ kind: 'err', text: `Lỗi khi cập nhật khách sạn: ${error.message}` });
+        } else {
+          onToast({ kind: 'ok', text: 'Đã cập nhật khách sạn thành công!' });
+        }
+      } else {
+        const { error } = await supabase.from('hotels').insert([
+          { name: hotelName.trim(), code: hotelCode.trim() || null, address: hotelAddress.trim() || null, is_active: true },
+        ]);
+        if (error) {
+          onToast({ kind: 'err', text: `Lỗi khi thêm khách sạn: ${error.message}` });
+        } else {
+          onToast({ kind: 'ok', text: 'Thêm khách sạn mới thành công!' });
+        }
+      }
+      setHotelEdit(null);
+      setHotelName('');
+      setHotelCode('');
+      setHotelAddress('');
+      await loadHotels();
+    } catch (e) {
+      onToast({ kind: 'err', text: `Lỗi khi thêm khách sạn: ${(e as Error).message}` });
+    } finally {
+      setHotelSaving(false);
     }
-    setHotelSaving(false);
-    setHotelEdit(null);
-    setHotelName('');
-    await loadHotels();
   };
   const deleteHotel = async (h: Hotel) => {
     if (!confirm(`Xoá khách sạn "${h.name}"? Tất cả loại phòng và giá liên quan cũng sẽ bị xoá.`)) return;
@@ -377,6 +403,8 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
         onClose={() => {
           setHotelEdit(null);
           setHotelName('');
+          setHotelCode('');
+          setHotelAddress('');
         }}
         title={hotelEdit ? 'Sửa khách sạn' : 'Thêm khách sạn'}
         maxWidth="max-w-sm"
@@ -391,12 +419,28 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
               onEnter={saveHotel}
             />
           </Field>
+          <Field label="Mã khách sạn (Code)" hint="Mã nội bộ, không bắt buộc">
+            <Input
+              value={hotelCode}
+              onChange={setHotelCode}
+              placeholder="VD: DLE"
+            />
+          </Field>
+          <Field label="Địa chỉ" hint="Địa chỉ khách sạn, không bắt buộc">
+            <Input
+              value={hotelAddress}
+              onChange={setHotelAddress}
+              placeholder="VD: 123 Nguyễn Huệ, Q1, TP.HCM"
+            />
+          </Field>
           <div className="flex justify-end gap-2">
             <Button
               variant="secondary"
               onClick={() => {
                 setHotelEdit(null);
                 setHotelName('');
+                setHotelCode('');
+                setHotelAddress('');
               }}
             >
               Hủy
@@ -900,6 +944,21 @@ interface UserFormState {
   role: Role;
   allowed: string[]; // hotel ids or ['*']
   canAccessPuReport: boolean;
+  canUploadPuOnly: boolean;
+}
+
+type PuPerm = 'full' | 'upload_only' | 'none';
+
+function puPermFromUser(u: AppUser): PuPerm {
+  if (u.role === 'admin' || u.can_access_pu_report === true) return 'full';
+  if (u.can_upload_pu_only === true) return 'upload_only';
+  return 'none';
+}
+
+function puPermLabel(p: PuPerm): string {
+  if (p === 'full') return 'Full quyền PU Report';
+  if (p === 'upload_only') return 'Chỉ xem dữ liệu thô & Import';
+  return 'Không có quyền PU Report';
 }
 
 function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
@@ -917,6 +976,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     role: 'user',
     allowed: [],
     canAccessPuReport: false,
+    canUploadPuOnly: false,
   });
 
   const loadAll = useCallback(async () => {
@@ -955,6 +1015,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
       role: 'user',
       allowed: [],
       canAccessPuReport: false,
+      canUploadPuOnly: false,
     });
     setModalOpen(true);
   };
@@ -967,6 +1028,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
       role: u.role,
       allowed: u.allowed_hotel_ids || [],
       canAccessPuReport: u.can_access_pu_report === true,
+      canUploadPuOnly: u.can_upload_pu_only === true,
     });
     setModalOpen(true);
   };
@@ -997,6 +1059,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
       role: form.role,
       allowed_hotel_ids: allowedHotels,
       can_access_pu_report: form.role === 'admin' ? true : form.canAccessPuReport,
+      can_upload_pu_only: form.role === 'admin' ? false : form.canUploadPuOnly,
     };
     if (form.id) {
       const { error } = await supabase.from('app_users').update(payload).eq('id', form.id);
@@ -1030,6 +1093,22 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     if (error) onToast({ kind: 'err', text: `Lỗi: ${error.message}` });
     else {
       onToast({ kind: 'ok', text: `Đã xoá tài khoản "${u.username}".` });
+      await reloadUsers();
+    }
+  };
+
+  const updatePuPerm = async (u: AppUser, perm: PuPerm) => {
+    if (u.role === 'admin') return;
+    const canAccessPuReport = perm === 'full';
+    const canUploadPuOnly = perm === 'upload_only';
+    const { error } = await supabase
+      .from('app_users')
+      .update({ can_access_pu_report: canAccessPuReport, can_upload_pu_only: canUploadPuOnly })
+      .eq('id', u.id);
+    if (error) {
+      onToast({ kind: 'err', text: `Lỗi: ${error.message}` });
+    } else {
+      onToast({ kind: 'ok', text: 'Đã cập nhật phân quyền tài khoản thành công' });
       await reloadUsers();
     }
   };
@@ -1097,10 +1176,29 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                     {describeAllowed(u)}
                   </td>
                   <td className="px-3 py-2.5">
-                    {u.role === 'admin' || u.can_access_pu_report ? (
-                      <Badge tone="green">Có</Badge>
+                    {u.role === 'admin' ? (
+                      <Badge tone="gold">Admin</Badge>
                     ) : (
-                      <Badge tone="neutral">—</Badge>
+                      <div className="space-y-1">
+                        {(['full', 'upload_only', 'none'] as PuPerm[]).map((p) => {
+                          const checked = puPermFromUser(u) === p;
+                          return (
+                            <label
+                              key={p}
+                              className="flex items-center gap-1.5 text-xs text-navy-700 cursor-pointer hover:text-navy-800"
+                            >
+                              <input
+                                type="radio"
+                                name={`pu-perm-${u.id}`}
+                                checked={checked}
+                                onChange={() => updatePuPerm(u, p)}
+                                className="accent-gold-500"
+                              />
+                              {puPermLabel(p)}
+                            </label>
+                          );
+                        })}
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-2.5 mono-num text-navy-500 text-xs whitespace-nowrap">
@@ -1174,16 +1272,49 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
           </Field>
 
           {form.role === 'user' && (
-            <Field label="Quyền truy cập PU Report" hint="Cho phép user xem trang PU Report (Pickup)">
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-navy-100 bg-navy-50/40 cursor-pointer text-sm text-navy-700">
-                <input
-                  type="checkbox"
-                  checked={form.canAccessPuReport}
-                  onChange={(e) => setForm({ ...form, canAccessPuReport: e.target.checked })}
-                  className="accent-gold-500"
-                />
-                Cho phép truy cập trang PU Report
-              </label>
+            <Field label="Quyền truy cập PU Report" hint="Chọn mức phân quyền cho trang PU Report">
+              <div className="space-y-1.5">
+                {([
+                  { v: 'full', label: 'Full quyền PU Report', desc: 'Xem KPIs, Smart Alerts, charts, dữ liệu thô & upload files' },
+                  { v: 'upload_only', label: 'Chỉ xem dữ liệu thô & Import Data', desc: 'Chỉ xem bảng dữ liệu thô và import file (ẩn KPIs/ADR/Doanh thu)' },
+                  { v: 'none', label: 'Không có quyền PU Report', desc: 'Không truy cập trang PU Report' },
+                ] as { v: PuPerm; label: string; desc: string }[]).map((opt) => {
+                  const checked =
+                    opt.v === 'full'
+                      ? form.canAccessPuReport
+                      : opt.v === 'upload_only'
+                        ? form.canUploadPuOnly && !form.canAccessPuReport
+                        : !form.canAccessPuReport && !form.canUploadPuOnly;
+                  return (
+                    <label
+                      key={opt.v}
+                      className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
+                        checked
+                          ? 'border-gold-500/40 bg-gold-500/10 text-navy-800'
+                          : 'border-navy-100 bg-navy-50/40 text-navy-700 hover:bg-navy-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pu-perm-form"
+                        checked={checked}
+                        onChange={() =>
+                          setForm({
+                            ...form,
+                            canAccessPuReport: opt.v === 'full',
+                            canUploadPuOnly: opt.v === 'upload_only',
+                          })
+                        }
+                        className="accent-gold-500 mt-0.5"
+                      />
+                      <div>
+                        <div className="font-medium">{opt.label}</div>
+                        <div className="text-xs text-navy-400 mt-0.5">{opt.desc}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </Field>
           )}
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AuthProvider, useAuth, isAdmin, canAccessPuReport } from '@/auth/AuthContext';
+import { AuthProvider, useAuth, isAdmin, canAccessPuReport, canUploadPuOnly } from '@/auth/AuthContext';
 import { LoginScreen } from '@/components/LoginScreen';
 import { Header, type PageKey } from '@/components/Header';
 import { LookupCalendarPage } from '@/pages/LookupCalendarPage';
@@ -24,10 +24,11 @@ function Shell() {
   if (!user) return <LoginScreen />;
 
   // Guard restricted pages: update/admin require admin; pu_report requires
-  // admin OR can_access_pu_report flag. Unauthorized users fall back to Lịch.
+  // admin, can_access_pu_report flag, or can_upload_pu_only flag.
+  // Unauthorized users fall back to Lịch.
   const effectivePage: PageKey =
     ((page === 'update' || page === 'admin') && !isAdmin(user)) ||
-    (page === 'pu_report' && !canAccessPuReport(user))
+    (page === 'pu_report' && !canAccessPuReport(user) && !canUploadPuOnly(user))
       ? 'lookup'
       : page;
 
@@ -39,7 +40,7 @@ function Shell() {
         {effectivePage === 'price_list' && <MasterPriceListPage />}
         {effectivePage === 'rate_requests' && <RateRequestsPage />}
         {effectivePage === 'update' && isAdmin(user) && <DailyRateUpdatePage />}
-        {effectivePage === 'pu_report' && canAccessPuReport(user) && <PUReportPage />}
+        {effectivePage === 'pu_report' && (canAccessPuReport(user) || canUploadPuOnly(user)) && <PUReportPage />}
         {effectivePage === 'admin' && isAdmin(user) && <SystemAdminPage />}
       </main>
       <footer className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 text-center text-xs text-navy-300">
