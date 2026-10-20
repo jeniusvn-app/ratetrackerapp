@@ -562,7 +562,7 @@ export function PUReportPage() {
   // ============ BLOCK 3: CUSTOM PERIOD ANALYTICS (uses date picker, falls back to 24h) ============
   const hasPeriod = fromDate !== '' || toDate !== '';
   const periodHeader = hasPeriod
-    ? `Thống kê giai đoạn: ${fromDate ? toDMY(fromDate) : '…'} - ${toDate ? toDMY(toDate) : '…'}`
+    ? `Thống kê theo giai đoạn đặt: ${fromDate ? toDMY(fromDate) : '…'} - ${toDate ? toDMY(toDate) : '…'}`
     : 'Thống kê 24h vừa qua';
 
   const periodRecords = useMemo(() => {
@@ -752,7 +752,7 @@ export function PUReportPage() {
         {isFullAccess && (
         <div className="rounded-xl border border-gold-500/30 bg-gradient-to-br from-gold-500/10 to-navy-50/40 p-4 space-y-3">
           <div className="flex items-center gap-2 text-gold-700 font-semibold text-sm">
-            <TrendingUp size={16} /> Khối 1 — Tổng Quan 24h (Real-time)
+            <TrendingUp size={16} /> Tổng quan 24h (Real-time)
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
@@ -815,7 +815,7 @@ export function PUReportPage() {
         {isFullAccess && (
         <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
           <div className="flex items-center gap-2 text-navy-700 font-semibold text-sm">
-            <Layers size={16} /> Khối 2 — Thống Kê Theo Nguồn 24h (Real-time)
+            <Layers size={16} /> Thống kê theo nguồn 24h (Real-time)
           </div>
           {source24hRows.length === 0 ? (
             <EmptyState message="Không có dữ liệu PU trong 24h qua." />
@@ -856,7 +856,7 @@ export function PUReportPage() {
         {isFullAccess && (
         <div className="rounded-xl border border-navy-300 bg-white p-4 space-y-4">
           <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
-            <CalendarDays size={16} /> Khối 3 — {periodHeader}
+            <CalendarDays size={16} /> {periodHeader}
           </div>
 
           {/* Period filter bar */}
