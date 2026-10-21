@@ -256,8 +256,8 @@ export function PUReportPage() {
   const block2Ref = useRef<HTMLDivElement | null>(null);
   const block3Ref = useRef<HTMLDivElement | null>(null);
 
-  // Hotel filter (multi-select, no "All Hotels" option)
-  const [selectedHotelIds, setSelectedHotelIds] = useState<string[]>([]);
+  // Hotel filter (single-select)
+  const [selectedHotelId, setSelectedHotelId] = useState<string>('');
 
   // User lookup for upload history
   const [userMap, setUserMap] = useState<Map<string, AppUserInfo>>(new Map());
@@ -278,8 +278,8 @@ export function PUReportPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     let recQuery = supabase.from('pickup_records').select('*').order('created_at', { ascending: false }).limit(2000);
-    if (selectedHotelIds.length > 0) {
-      recQuery = recQuery.in('hotel_id', selectedHotelIds);
+    if (selectedHotelId) {
+      recQuery = recQuery.eq('hotel_id', selectedHotelId);
     }
     const [r, l, u] = await Promise.all([
       recQuery,
@@ -292,15 +292,15 @@ export function PUReportPage() {
     ((u.data as AppUserInfo[]) || []).forEach((usr) => um.set(usr.id, usr));
     setUserMap(um);
     setLoading(false);
-  }, [selectedHotelIds]);
+  }, [selectedHotelId]);
 
   // Default hotel selection: first assigned hotel sorted alphabetically
   useEffect(() => {
-    if (hotels.length > 0 && selectedHotelIds.length === 0) {
+    if (hotels.length > 0 && !selectedHotelId) {
       const sorted = [...hotels].sort((a, b) => a.name.localeCompare(b.name));
-      setSelectedHotelIds([sorted[0].id]);
+      setSelectedHotelId(sorted[0].id);
     }
-  }, [hotels, selectedHotelIds]);
+  }, [hotels, selectedHotelId]);
 
   useEffect(() => {
     loadAll();
@@ -416,7 +416,7 @@ export function PUReportPage() {
       // 3. Append records (never overwrite)
       const rows = parsed.map((p) => ({
         import_id: importId,
-        hotel_id: selectedHotelIds.length === 1 ? selectedHotelIds[0] : (selectedHotelIds.length > 0 ? selectedHotelIds[0] : null),
+        hotel_id: selectedHotelId || null,
         booking_id: p.booking_id,
         source: p.source,
         arrival_date: p.arrival_date,
@@ -631,12 +631,9 @@ export function PUReportPage() {
     return { nights, revenue, adr: nights > 0 ? revenue / nights : 0, count };
   }, [filtered]);
 
-  const selectedHotelNames = useMemo(() => {
-    return selectedHotelIds
-      .map((id) => hotels.find((h) => h.id === id)?.name)
-      .filter(Boolean)
-      .join(', ');
-  }, [selectedHotelIds, hotels]);
+  const selectedHotelName = useMemo(() => {
+    return hotels.find((h) => h.id === selectedHotelId)?.name || '';
+  }, [selectedHotelId, hotels]);
 
   const handleExportPDF = async () => {
     if (!pdfSelection.block1 && !pdfSelection.block2 && !pdfSelection.block3) {
@@ -653,7 +650,7 @@ export function PUReportPage() {
 
       const now = new Date();
       const ts = `${toDMY(toISODate(now))} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const hotelName = selectedHotelNames || 'Tất cả khách sạn';
+      const hotelName = selectedHotelName || 'Tất cả khách sạn';
 
       const renderHeader = () => {
         pdf.setFillColor(26, 31, 59);
@@ -792,8 +789,51 @@ export function PUReportPage() {
         )}
       </div>
 
-      {activeTab === 'analytics' && isFullAccess && selectedHotelIds.length > 0 && (
-        <MiniRMSAnalytics hotelId={selectedHotelIds[0]} />
+      {/* ============ SHARED HOTEL SELECTOR (both tabs) ============ */}
+      <div className="flex flex-wrap items-start gap-3">
+        <Field label="Khách sạn" className="w-full max-w-md">
+          <div className="relative">
+            <details className="group">
+              <summary className="flex items-center justify-between w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy-400 list-none">
+                <span className="truncate">
+                  {selectedHotelId
+                    ? [...hotels].find((h) => h.id === selectedHotelId)?.name || 'Khách sạn'
+                    : 'Chọn khách sạn…'}
+                </span>
+                <svg className="w-4 h-4 text-navy-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </summary>
+              <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto thin-scroll rounded-lg border border-navy-200 bg-white shadow-pop space-y-0.5 p-1.5">
+                {hotels.length === 0 && (
+                  <div className="text-xs text-navy-400 px-2 py-1.5">Chưa có khách sạn được gán.</div>
+                )}
+                {[...hotels]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((h: Hotel) => (
+                    <label
+                      key={h.id}
+                      className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5"
+                    >
+                      <input
+                        type="radio"
+                        name="hotel-select"
+                        checked={selectedHotelId === h.id}
+                        onChange={() => {
+                          setSelectedHotelId(h.id);
+                          setPage(1);
+                        }}
+                        className="accent-gold-500"
+                      />
+                      {h.name}
+                    </label>
+                  ))}
+              </div>
+            </details>
+          </div>
+        </Field>
+      </div>
+
+      {activeTab === 'analytics' && isFullAccess && selectedHotelId && (
+        <MiniRMSAnalytics hotelId={selectedHotelId} />
       )}
       {activeTab === 'analytics' && !isFullAccess && (
         <Card className="p-4">
@@ -829,54 +869,6 @@ export function PUReportPage() {
             <History size={16} /> Lịch sử cập nhật
           </Button>
           <span className="ml-auto text-xs text-navy-400">{records.length} dòng pickup đã lưu</span>
-        </div>
-
-        {/* Hotel multi-select dropdown */}
-        <div className="flex flex-wrap items-start gap-3">
-          <Field label="Khách sạn (chọn một hoặc nhiều)" className="w-full max-w-md">
-            <div className="relative">
-              <details className="group">
-                <summary className="flex items-center justify-between w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy-400 list-none">
-                  <span className="truncate">
-                    {selectedHotelIds.length === 0
-                      ? 'Chọn khách sạn…'
-                      : selectedHotelIds.length === 1
-                        ? [...hotels].find((h) => h.id === selectedHotelIds[0])?.name || '1 khách sạn'
-                        : `${selectedHotelIds.length} khách sạn đã chọn`}
-                  </span>
-                  <svg className="w-4 h-4 text-navy-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </summary>
-                <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto thin-scroll rounded-lg border border-navy-200 bg-white shadow-pop space-y-0.5 p-1.5">
-                  {hotels.length === 0 && (
-                    <div className="text-xs text-navy-400 px-2 py-1.5">Chưa có khách sạn được gán.</div>
-                  )}
-                  {[...hotels]
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map((h: Hotel) => (
-                      <label
-                        key={h.id}
-                        className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedHotelIds.includes(h.id)}
-                          onChange={() => {
-                            setSelectedHotelIds((prev) =>
-                              prev.includes(h.id)
-                                ? prev.filter((x) => x !== h.id)
-                                : [...prev, h.id],
-                            );
-                            setPage(1);
-                          }}
-                          className="accent-gold-500"
-                        />
-                        {h.name}
-                      </label>
-                    ))}
-                </div>
-              </details>
-            </div>
-          </Field>
         </div>
 
         {/* Mode selector */}
