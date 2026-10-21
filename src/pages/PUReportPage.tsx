@@ -13,6 +13,10 @@ import {
   BarChart2,
   LineChart,
   Swords,
+  ClipboardList,
+  Save,
+  XCircle,
+  Database,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -24,6 +28,7 @@ import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import type { Hotel } from '@/types';
 import { MiniRMSAnalytics } from '@/components/MiniRMSAnalytics';
 import { CompsetTab } from '@/components/CompsetTab';
+import { DatePicker } from '@/components/DatePicker';
 
 const STORAGE_BUCKET = 'pickup-reports';
 
@@ -258,8 +263,77 @@ export function PUReportPage() {
   const block2Ref = useRef<HTMLDivElement | null>(null);
   const block3Ref = useRef<HTMLDivElement | null>(null);
 
-  // Hotel filter (single-select)
+  // Hotel filter (single-select) with click-outside dropdown
   const [selectedHotelId, setSelectedHotelId] = useState<string>('');
+  const [hotelOpen, setHotelOpen] = useState(false);
+  const hotelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hotelOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (hotelRef.current && !hotelRef.current.contains(e.target as Node)) {
+        setHotelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [hotelOpen]);
+
+  // Manual rooms sold (lifted state — shared between Tab 1 and Tab 2)
+  const [manualSold, setManualSold] = useState<Map<string, number>>(new Map());
+  const [manualDraft, setManualDraft] = useState<Map<string, string>>(new Map());
+  const [savingManual, setSavingManual] = useState(false);
+  const [manualMsg, setManualMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // Load manual rooms sold for 30-day window
+  const loadManualSold = useCallback(async () => {
+    if (!selectedHotelId) {
+      setManualSold(new Map());
+      return;
+    }
+    const today = toISODate(new Date());
+    const end30 = toISODate(new Date(Date.now() + 30 * 86400000));
+    const { data } = await supabase
+      .from('manual_rooms_sold')
+      .select('date, actual_rooms_sold')
+      .eq('hotel_id', selectedHotelId)
+      .gte('date', today)
+      .lte('date', end30);
+    const map = new Map<string, number>();
+    ((data as { date: string; actual_rooms_sold: number }[]) || []).forEach((row) => {
+      map.set(row.date, row.actual_rooms_sold);
+    });
+    setManualSold(map);
+  }, [selectedHotelId]);
+
+  useEffect(() => {
+    loadManualSold();
+  }, [loadManualSold]);
+
+  // Sync manual draft when manualSold changes
+  useEffect(() => {
+    const draft = new Map<string, string>();
+    manualSold.forEach((v, k) => draft.set(k, String(v)));
+    setManualDraft(draft);
+  }, [manualSold]);
+
+  // Save manual rooms sold for a single date
+  const saveManualSold = async (date: string) => {
+    if (!selectedHotelId) return;
+    setSavingManual(true);
+    setManualMsg(null);
+    const val = Number(manualDraft.get(date) || 0) || 0;
+    const { error } = await supabase
+      .from('manual_rooms_sold')
+      .upsert({ hotel_id: selectedHotelId, date, actual_rooms_sold: val }, { onConflict: 'hotel_id,date' });
+    if (error) {
+      setManualMsg({ kind: 'err', text: `Lỗi lưu rooms sold: ${error.message}` });
+    } else {
+      setManualSold((prev) => new Map(prev).set(date, val));
+      setManualMsg({ kind: 'ok', text: `Đã lưu rooms sold cho ${toDMY(date)}.` });
+    }
+    setSavingManual(false);
+  };
 
   // User lookup for upload history
   const [userMap, setUserMap] = useState<Map<string, AppUserInfo>>(new Map());
@@ -276,6 +350,26 @@ export function PUReportPage() {
   const [page, setPage] = useState(1);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const cancelFileRef = useRef<HTMLInputElement | null>(null);
+
+  // 30-day date list for manual rooms sold grid
+  const manualDates = useMemo(() => {
+    const arr: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 30; i++) arr.push(toISODate(new Date(now.getTime() + i * 86400000)));
+    return arr;
+  }, []);
+
+  // PU sold counts per date (from records, for the manual grid)
+  const puSoldByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    records.forEach((r) => {
+      if (r.status === 'Cancelled' || !r.arrival_date) return;
+      const cur = map.get(r.arrival_date) ?? 0;
+      map.set(r.arrival_date, cur + (Number(r.quantity) || 1));
+    });
+    return map;
+  }, [records]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -452,6 +546,11 @@ export function PUReportPage() {
   };
 
   const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) void handleImport(f);
+  };
+
+  const onCancelFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) void handleImport(f);
   };
@@ -774,7 +873,7 @@ export function PUReportPage() {
           }`}
         >
           <BarChart3 size={16} />
-          PU Report
+          Data & PU Report
         </button>
         {isFullAccess && (
         <button
@@ -807,16 +906,20 @@ export function PUReportPage() {
       {/* ============ SHARED HOTEL SELECTOR (all tabs) ============ */}
       <div className="flex flex-wrap items-start gap-3">
         <Field label="Khách sạn" className="w-full max-w-md">
-          <div className="relative">
-            <details className="group">
-              <summary className="flex items-center justify-between w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy-400 list-none">
-                <span className="truncate">
-                  {selectedHotelId
-                    ? [...hotels].find((h) => h.id === selectedHotelId)?.name || 'Khách sạn'
-                    : 'Chọn khách sạn…'}
-                </span>
-                <svg className="w-4 h-4 text-navy-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </summary>
+          <div className="relative" ref={hotelRef}>
+            <button
+              type="button"
+              onClick={() => setHotelOpen(!hotelOpen)}
+              className="flex items-center justify-between w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-navy-400"
+            >
+              <span className="truncate">
+                {selectedHotelId
+                  ? [...hotels].find((h) => h.id === selectedHotelId)?.name || 'Khách sạn'
+                  : 'Chọn khách sạn…'}
+              </span>
+              <svg className={`w-4 h-4 text-navy-400 transition-transform ${hotelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {hotelOpen && (
               <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto thin-scroll rounded-lg border border-navy-200 bg-white shadow-pop space-y-0.5 p-1.5">
                 {hotels.length === 0 && (
                   <div className="text-xs text-navy-400 px-2 py-1.5">Chưa có khách sạn được gán.</div>
@@ -824,31 +927,27 @@ export function PUReportPage() {
                 {[...hotels]
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((h: Hotel) => (
-                    <label
+                    <button
                       key={h.id}
-                      className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5"
+                      onClick={() => {
+                        setSelectedHotelId(h.id);
+                        setPage(1);
+                        setHotelOpen(false);
+                      }}
+                      className={`flex items-center gap-2 w-full text-sm text-left cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5 ${selectedHotelId === h.id ? 'bg-gold-50 text-navy-900 font-semibold' : 'text-navy-700'}`}
                     >
-                      <input
-                        type="radio"
-                        name="hotel-select"
-                        checked={selectedHotelId === h.id}
-                        onChange={() => {
-                          setSelectedHotelId(h.id);
-                          setPage(1);
-                        }}
-                        className="accent-gold-500"
-                      />
+                      {selectedHotelId === h.id && <span className="w-1.5 h-1.5 rounded-full bg-gold-500 flex-shrink-0" />}
                       {h.name}
-                    </label>
+                    </button>
                   ))}
               </div>
-            </details>
+            )}
           </div>
         </Field>
       </div>
 
       {activeTab === 'analytics' && isFullAccess && selectedHotelId && (
-        <MiniRMSAnalytics hotelId={selectedHotelId} />
+        <MiniRMSAnalytics hotelId={selectedHotelId} manualSold={manualSold} />
       )}
       {activeTab === 'analytics' && !isFullAccess && (
         <Card className="p-4">
@@ -867,9 +966,14 @@ export function PUReportPage() {
 
       {activeTab === 'pu' && (<>
 
-      {/* ============ SECTION 1: ANALYTICS ============ */}
+      {/* ============ CENTRAL DATA INPUT HUB ============ */}
       <Card className="p-4 space-y-4">
-        {/* Action bar */}
+        <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm border-b border-navy-50 pb-2">
+          <Database size={16} className="text-gold-600" />
+          Trung tâm nhập dữ liệu — 3 module
+        </div>
+
+        {/* Module 1 & 2: Import buttons */}
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="gold" onClick={() => fileRef.current?.click()} disabled={importing}>
             <Upload size={16} /> {importing ? 'Đang import…' : 'Import Báo Cáo Pickup'}
@@ -880,6 +984,16 @@ export function PUReportPage() {
             accept=".xlsx,.xls,.csv"
             className="hidden"
             onChange={onFilePicked}
+          />
+          <Button variant="secondary" onClick={() => cancelFileRef.current?.click()} disabled={importing}>
+            <XCircle size={16} /> Import Booking Hủy (Cancelled)
+          </Button>
+          <input
+            ref={cancelFileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={onCancelFilePicked}
           />
           {isFullAccess && (
             <Button variant="secondary" onClick={() => setPdfModalOpen(true)} disabled={pdfExporting}>
@@ -893,6 +1007,68 @@ export function PUReportPage() {
             <History size={16} /> Lịch sử cập nhật
           </Button>
           <span className="ml-auto text-xs text-navy-400">{records.length} dòng pickup đã lưu</span>
+        </div>
+
+        {/* Module 3: Manual Actual Rooms Sold — 30-day grid */}
+        <div className="rounded-lg border border-navy-200 bg-white p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-navy-600 uppercase tracking-wide">
+            <ClipboardList size={14} className="text-gold-600" />
+            Module 3: Nhập thủ công Rooms Sold thực tế (30 ngày)
+          </div>
+          {manualMsg && (
+            <div className={`text-xs ${manualMsg.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>{manualMsg.text}</div>
+          )}
+          <div className="overflow-x-auto thin-scroll max-h-64 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-navy-50 text-navy-700 sticky top-0">
+                <tr>
+                  <th className="text-left px-2 py-2 font-semibold">Ngày đến</th>
+                  <th className="text-left px-2 py-2 font-semibold">Thứ</th>
+                  <th className="text-right px-2 py-2 font-semibold">PU Sold</th>
+                  <th className="text-center px-2 py-2 font-semibold">Manual Rooms Sold</th>
+                  <th className="text-right px-2 py-2 font-semibold">Effective Sold</th>
+                  <th className="w-12 px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {manualDates.map((d) => {
+                  const dt = new Date(d + 'T00:00:00');
+                  const weekday = WEEKDAY_VI[dt.getDay()] || '—';
+                  const isSaturday = dt.getDay() === 6;
+                  const pu = puSoldByDate.get(d) ?? 0;
+                  const manual = Number(manualDraft.get(d) || 0) || 0;
+                  const effective = Math.max(pu, manual);
+                  return (
+                    <tr key={d} className={`border-t border-navy-50 ${isSaturday ? 'bg-amber-50/40' : ''}`}>
+                      <td className="px-2 py-1.5 mono-num text-navy-700 whitespace-nowrap">{toDMY(d)}</td>
+                      <td className={`px-2 py-1.5 ${isSaturday ? 'text-amber-700 font-semibold' : 'text-navy-600'}`}>{weekday}</td>
+                      <td className="px-2 py-1.5 text-right mono-num text-navy-500">{pu}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <input
+                          type="number"
+                          value={manualDraft.get(d) ?? ''}
+                          onChange={(e) => setManualDraft((prev) => new Map(prev).set(d, e.target.value))}
+                          placeholder="0"
+                          className="w-20 text-center bg-white border border-navy-200 rounded-md px-1.5 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right mono-num font-semibold text-navy-800">{effective}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          onClick={() => saveManualSold(d)}
+                          disabled={savingManual}
+                          className="p-1 rounded-md text-navy-400 hover:bg-navy-100 hover:text-navy-700"
+                          title="Lưu"
+                        >
+                          <Save size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Mode selector */}

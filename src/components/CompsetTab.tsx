@@ -7,11 +7,10 @@ import {
   Swords,
   Lightbulb,
   TrendingUp,
-  Info,
-  ChevronDown,
 } from 'lucide-react';
+import { DatePicker } from '@/components/DatePicker';
 import { supabase } from '@/lib/supabase';
-import { Button, Card, Field, Input, EmptyState, Badge, Select } from '@/components/ui';
+import { Button, Card, Field, EmptyState, Select } from '@/components/ui';
 import { formatVND, toISODate, toDMY } from '@/lib/format';
 
 const WEEKDAY_VI = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -71,20 +70,10 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
   const [savingTracker, setSavingTracker] = useState(false);
   const [trackerMsg, setTrackerMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
-  // Generate 30-day date list
-  const dates = useMemo(() => {
-    const arr: string[] = [];
-    const now = new Date();
-    for (let i = 0; i < 30; i++) {
-      arr.push(toISODate(new Date(now.getTime() + i * 86400000)));
-    }
-    return arr;
-  }, []);
-
   // Default selected date = today
   useEffect(() => {
-    if (!selectedDate && dates.length > 0) setSelectedDate(dates[0]);
-  }, [dates, selectedDate]);
+    if (!selectedDate) setSelectedDate(toISODate(new Date()));
+  }, [selectedDate]);
 
   // Load competitors
   const loadCompetitors = useCallback(async () => {
@@ -105,37 +94,41 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
 
   // Load daily entries
   const loadEntries = useCallback(async () => {
-    if (!hotelId || dates.length === 0) {
+    if (!hotelId) {
       setEntries([]);
       return;
     }
+    const today = toISODate(new Date());
+    const endRange = toISODate(new Date(Date.now() + 365 * 86400000));
     const { data } = await supabase
       .from('compset_daily_entries')
       .select('*')
       .eq('hotel_id', hotelId)
-      .gte('date', dates[0])
-      .lte('date', dates[dates.length - 1]);
+      .gte('date', today)
+      .lte('date', endRange);
     setEntries((data as DailyEntry[]) || []);
-  }, [hotelId, dates]);
+  }, [hotelId]);
 
   // Load manual rooms sold (for my_rate and manual_occupancy)
   const loadManual = useCallback(async () => {
-    if (!hotelId || dates.length === 0) {
+    if (!hotelId) {
       setManualEntries(new Map());
       return;
     }
+    const today = toISODate(new Date());
+    const endRange = toISODate(new Date(Date.now() + 365 * 86400000));
     const { data } = await supabase
       .from('manual_rooms_sold')
       .select('date, actual_rooms_sold, my_rate, manual_occupancy')
       .eq('hotel_id', hotelId)
-      .gte('date', dates[0])
-      .lte('date', dates[dates.length - 1]);
+      .gte('date', today)
+      .lte('date', endRange);
     const map = new Map<string, ManualRoomsEntry>();
     ((data as ManualRoomsEntry[]) || []).forEach((row) => {
       map.set(row.date, row);
     });
     setManualEntries(map);
-  }, [hotelId, dates]);
+  }, [hotelId]);
 
   useEffect(() => {
     setLoading(true);
@@ -493,26 +486,19 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
       {/* ============ SUB-TAB 2: RATE TRACKER & ACTION INSIGHTS ============ */}
       {subTab === 'tracker' && !loading && (
         <>
-          {/* Date selector */}
+          {/* Date selector — unlimited calendar */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-navy-700">Chọn ngày:</span>
-            <div className="relative">
-              <select
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="appearance-none bg-white border border-navy-200 rounded-lg pl-3 pr-9 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-              >
-                {dates.map((d) => {
-                  const dt = new Date(d + 'T00:00:00');
-                  return (
-                    <option key={d} value={d}>
-                      {WEEKDAY_VI[dt.getDay()]} {toDMY(d)}
-                    </option>
-                  );
-                })}
-              </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-navy-300" />
-            </div>
+            <DatePicker
+              value={selectedDate}
+              onChange={(d) => setSelectedDate(d)}
+              placeholder="Chọn ngày…"
+            />
+            {selectedDate && (
+              <span className="text-xs text-navy-400">
+                {WEEKDAY_VI[new Date(selectedDate + 'T00:00:00').getDay()]} {toDMY(selectedDate)}
+              </span>
+            )}
           </div>
 
           {/* SECTION A: DAILY MANUAL ENTRY MATRIX */}
