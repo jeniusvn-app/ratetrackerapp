@@ -509,7 +509,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     },
     {
       num: 4,
-      title: 'Kịch bản 4: Giá bạn rẻ hơn Compset + Đối thủ bán nhanh BUT bạn vẫn ế',
+      title: 'Kịch bản 4: Giá bạn rẻ hơn Compset + Đối thủ bán nhanh nhưng bạn vẫn bán chậm',
       diagnosis: 'Giá của bạn rất tốt so với thị trường nhưng vẫn chưa có khách. Vấn đề nằm ở Kênh bán, Hình ảnh hoặc Điểm đánh giá (Review).',
       proposal: 'Đề xuất kiểm tra lại: 1. Đã mở bán đầy đủ trên các sàn OTA chưa? 2. Hình ảnh/Điểm đánh giá review có bị giảm không? 3. Bài đăng Zalo/Fanpage có bị trôi không?',
       color: 'border-navy-300 bg-navy-50/60',
@@ -928,7 +928,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
           <Card className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
               <Lightbulb size={16} className="text-gold-600" />
-              Section C: Actionable Insight Playbook — 4 Kịch bản
+              Kịch bản đề xuất
             </div>
             <div className="text-xs text-navy-400">
               Ngày đang xem: <span className="font-semibold text-navy-700">{selectedDate ? toDMY(selectedDate) : '—'}</span>
