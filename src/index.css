@@ -37,8 +37,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MASTER STABLE UI & DROPDOWN FIX
-   Author: Vibe Coding Expert (0 Token Cost)
+   MINIRMS / RATETRACKER AI - ABSOLUTE FIX FOR POP OVER & UI
+   Author: Vibe Coding Helper (0 Token Cost)
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH (MODERN PALETTE) */
@@ -86,45 +86,43 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. SỬA TRIỆT ĐỂ HỘP CHỌN (SELECT, DROPDOWN, RADIX POPOVER PORTAL) */
-/* Định dạng ô chọn Input / Select ban đầu */
-input, select, textarea, [role="combobox"] {
-  border-color: #BAB2B5 !important;
-  border-width: 1px !important;
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  font-weight: 500 !important;
-}
-
-/* Định dạng Menu thả xuống khi bấm vào ô chọn (Dropdown Portal) */
+/* ==========================================================
+   4. TẬP TRUNG SỬA LỖI POP OVER / MENU DROPDOWN (KASEN, FURIN...)
+   ========================================================== */
+/* Bắt chính xác Portal Container của Radix UI / Shadcn UI */
 [data-radix-popper-content-wrapper],
+[role="dialog"],
 [role="listbox"],
-.select-content,
-[class*="popover-content"] {
+[class*="popover-content"],
+[class*="DropdownMenuContent"],
+[class*="SelectContent"] {
   background-color: #ffffff !important;
   border: 1px solid #BAB2B5 !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
-  z-index: 9999 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+  z-index: 99999 !important;
 }
 
-/* Item bên trong Dropdown thả xuống */
-[role="option"],
-.select-item,
-[class*="popover"] button,
-[class*="popover"] div {
-  color: #0f172a !important;
+/* Ép toàn bộ chữ, label checkbox (Kasen, Furin, Nihoma...) bên trong Popover thành ĐEN XÁM nét 100% */
+[data-radix-popper-content-wrapper] *,
+[role="dialog"] *,
+[role="listbox"] *,
+[class*="popover-content"] *,
+[class*="DropdownMenu"] * {
+  color: #0f172a !important; /* Đen đậm rõ nét */
   font-weight: 500 !important;
 }
 
-/* Khi di chuột hoặc chọn item trong Dropdown */
+/* Highlight item khi hover hoặc active trong Dropdown */
 [role="option"]:hover,
-[role="option"][data-highlighted],
-.select-item:hover {
+[role="menuitem"]:hover,
+[class*="popover-content"] label:hover {
   background-color: #EEE2DC !important;
   color: #123C69 !important;
 }
 
-/* 5. PHẦN BẢNG DỮ LIỆU BÊN DƯỚI (TABLE) */
+/* ==========================================================
+   5. BẢNG DỮ LIỆU & TIÊU ĐỀ (TABLE & HEADERS)
+   ========================================================== */
 table th {
   color: #123C69 !important;
   font-weight: 700 !important;
@@ -143,10 +141,10 @@ table td [class*="font-bold"] {
   font-weight: 700 !important;
 }
 
-/* 6. LABELS, CHECKBOX & TIÊU ĐỀ PHỤ */
-label, [class*="checkbox"], [class*="label"] {
-  color: #0f172a !important;
-  font-weight: 500 !important;
+/* Label ngoài form */
+form label, .card label {
+  color: #123C69 !important;
+  font-weight: 600 !important;
 }
 
 h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
@@ -154,7 +152,9 @@ h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
   font-weight: 700 !important;
 }
 
-/* 7. MÀU DÒNG GIÁ TRÊN LỊCH & BADGES */
+/* ==========================================================
+   6. DÒNG GIÁ TRÊN LỊCH & CÁC BADGE TRẠNG THÁI
+   ========================================================== */
 .rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
 .rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
 .rdp [class*="text-purple-"], .rdp [class*="text-violet-"] { color: #7c3aed !important; }
@@ -169,6 +169,29 @@ svg, svg * {
   color: #92400e !important;
 }
 
+/* ==========================================================
+   7. INPUT, SELECT & BUTTONS
+   ========================================================== */
+input, select, textarea {
+  border-color: #BAB2B5 !important;
+  border-width: 1px !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+input:focus, select:focus {
+  border-color: #123C69 !important;
+  outline: none !important;
+}
+
+table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
+  border-color: rgba(186, 178, 181, 0.5) !important;
+}
+
+.bg-white, .card {
+  background-color: #ffffff !important;
+}
+
 button.bg-primary, 
 button[type="submit"],
 [class*="bg-primary"] {
@@ -177,7 +200,9 @@ button[type="submit"],
   font-weight: 600 !important;
 }
 
-/* 8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU */
+/* ==========================================================
+   8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU
+   ========================================================== */
 .rdp-day_outside,
 .day-outside,
 [class*="day-outside"],
