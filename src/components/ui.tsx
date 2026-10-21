@@ -12,12 +12,12 @@ interface BtnProps {
 }
 
 const variants: Record<string, string> = {
-  primary: 'bg-navy-700 text-white hover:bg-navy-600 border border-navy-700',
-  secondary: 'bg-white text-navy-800 border border-navy-200 hover:bg-navy-50',
-  ghost: 'bg-transparent text-navy-600 hover:bg-navy-50 border border-transparent',
+  primary: 'bg-[#E9967A] text-black hover:bg-[#D98265] border border-[#D98265]',
+  secondary: 'bg-white text-black border border-navy-200 hover:bg-navy-50',
+  ghost: 'bg-transparent text-black hover:bg-navy-100 border border-transparent',
   danger: 'bg-white text-red-600 border border-red-200 hover:bg-red-50',
-  gold: 'bg-gold-500 text-white hover:bg-gold-600 border border-gold-500 shadow-sm',
-  subtle: 'bg-navy-50 text-navy-700 hover:bg-navy-100 border border-navy-100',
+  gold: 'bg-[#E9967A] text-black hover:bg-[#D98265] border border-[#D98265] shadow-sm',
+  subtle: 'bg-navy-100 text-black hover:bg-[#FFE4C4] border border-navy-100',
 };
 
 const sizes: Record<string, string> = {
@@ -58,7 +58,7 @@ interface FieldProps {
 export function Field({ label, children, className = '', hint }: FieldProps) {
   return (
     <label className={`block ${className}`}>
-      <span className="block text-xs font-medium text-navy-700 mb-1.5 uppercase tracking-wide">
+      <span className="block text-xs font-medium text-black mb-1.5 uppercase tracking-wide">
         {label}
       </span>
       {children}
@@ -86,7 +86,7 @@ export function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`w-full appearance-none bg-white border border-navy-200 rounded-lg pl-3 pr-9 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400 focus:border-navy-400 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        className={`w-full appearance-none bg-white border border-navy-200 rounded-lg pl-3 pr-9 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#E9967A] focus:border-[#E9967A] disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       >
         {children}
       </select>
@@ -131,7 +131,7 @@ export function Input({
       onKeyDown={(e) => {
         if (e.key === 'Enter' && onEnter) onEnter();
       }}
-      className={`w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 placeholder:text-navy-300 focus:outline-none focus:ring-2 focus:ring-navy-400 focus:border-navy-400 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-black placeholder:text-navy-300 focus:outline-none focus:ring-2 focus:ring-[#E9967A] focus:border-[#E9967A] disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     />
   );
 }
@@ -152,12 +152,12 @@ export function Badge({
   tone?: 'neutral' | 'gold' | 'green' | 'red' | 'amber' | 'navy';
 }) {
   const tones: Record<string, string> = {
-    neutral: 'bg-navy-50 text-navy-700 border-navy-100',
-    gold: 'bg-gold-500/10 text-gold-600 border-gold-500/20',
+    neutral: 'bg-navy-100 text-black border-navy-100',
+    gold: 'bg-[#E9967A]/10 text-[#A85644] border-[#E9967A]/20',
     green: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     red: 'bg-red-50 text-red-700 border-red-100',
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    navy: 'bg-navy-700 text-white border-navy-700',
+    navy: 'bg-[#FFDAB9] text-black border-[#E9967A]',
   };
   return (
     <span
@@ -184,7 +184,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 bg-navy-900/40 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
@@ -192,10 +192,10 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-navy-100">
-          <h3 className="text-base font-semibold text-navy-800">{title}</h3>
+          <h3 className="text-base font-semibold text-black">{title}</h3>
           <button
             onClick={onClose}
-            className="text-navy-400 hover:text-navy-700 text-lg leading-none w-7 h-7 rounded-md hover:bg-navy-50"
+            className="text-navy-400 hover:text-black text-lg leading-none w-7 h-7 rounded-md hover:bg-navy-100"
             aria-label="Đóng"
           >
             ✕

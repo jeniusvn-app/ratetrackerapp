@@ -527,7 +527,7 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
                         <td className="px-3 py-2.5 text-right mono-num text-navy-600">
                           <div className="inline-flex items-center gap-2">
                             <div className="w-16 h-1.5 bg-navy-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-gold-500 rounded-full" style={{ width: `${s.contribution}%` }} />
+                              <div className="h-full bg-[#E9967A] rounded-full" style={{ width: `${s.contribution}%` }} />
                             </div>
                             <span>{s.contribution.toFixed(1)}%</span>
                           </div>

@@ -865,11 +865,11 @@ export function PUReportPage() {
           onClick={() => setActiveTab('pu')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'pu'
-              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
-              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
+              ? 'bg-[#E9967A] text-black font-semibold shadow-md shadow-[#E9967A]/25 border-[#D98265]'
+              : 'bg-[#FFE4C4] hover:bg-[#FFDAB9] text-black font-medium border-[#FFE4C4]'
           }`}
         >
-          <BarChart3 size={18} className={activeTab === 'pu' ? 'text-white' : 'text-slate-400'} />
+          <BarChart3 size={18} className={activeTab === 'pu' ? 'text-black' : 'text-black/50'} />
           Data & PU Report
         </button>
         {isFullAccess && (
@@ -877,11 +877,11 @@ export function PUReportPage() {
           onClick={() => setActiveTab('analytics')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'analytics'
-              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
-              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
+              ? 'bg-[#E9967A] text-black font-semibold shadow-md shadow-[#E9967A]/25 border-[#D98265]'
+              : 'bg-[#FFE4C4] hover:bg-[#FFDAB9] text-black font-medium border-[#FFE4C4]'
           }`}
         >
-          <LineChart size={18} className={activeTab === 'analytics' ? 'text-white' : 'text-slate-400'} />
+          <LineChart size={18} className={activeTab === 'analytics' ? 'text-black' : 'text-black/50'} />
           Analytics
         </button>
         )}
@@ -890,11 +890,11 @@ export function PUReportPage() {
           onClick={() => setActiveTab('compset')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'compset'
-              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
-              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
+              ? 'bg-[#E9967A] text-black font-semibold shadow-md shadow-[#E9967A]/25 border-[#D98265]'
+              : 'bg-[#FFE4C4] hover:bg-[#FFDAB9] text-black font-medium border-[#FFE4C4]'
           }`}
         >
-          <Swords size={18} className={activeTab === 'compset' ? 'text-white' : 'text-slate-400'} />
+          <Swords size={18} className={activeTab === 'compset' ? 'text-black' : 'text-black/50'} />
           Compset
         </button>
         )}
@@ -914,7 +914,7 @@ export function PUReportPage() {
                   ? [...hotels].find((h) => h.id === selectedHotelId)?.name || 'Khách sạn'
                   : 'Chọn khách sạn…'}
               </span>
-              <svg className={`w-4 h-4 text-navy-400 transition-transform ${hotelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              <svg className={`w-4 h-4 text-black/50 transition-transform ${hotelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {hotelOpen && (
               <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto thin-scroll rounded-lg border border-navy-200 bg-white shadow-pop space-y-0.5 p-1.5">
@@ -931,9 +931,9 @@ export function PUReportPage() {
                         setPage(1);
                         setHotelOpen(false);
                       }}
-                      className={`flex items-center gap-2 w-full text-sm text-left cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5 ${selectedHotelId === h.id ? 'bg-gold-50 text-navy-900 font-semibold' : 'text-navy-700'}`}
+                      className={`flex items-center gap-2 w-full text-sm text-left cursor-pointer hover:bg-navy-50 rounded px-2 py-1.5 ${selectedHotelId === h.id ? 'bg-[#FFE4C4] text-black font-semibold' : 'text-black'}`}
                     >
-                      {selectedHotelId === h.id && <span className="w-1.5 h-1.5 rounded-full bg-gold-500 flex-shrink-0" />}
+                      {selectedHotelId === h.id && <span className="w-1.5 h-1.5 rounded-full bg-[#E9967A] flex-shrink-0" />}
                       {h.name}
                     </button>
                   ))}
@@ -1081,7 +1081,7 @@ export function PUReportPage() {
                   setPage(1);
                 }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  mode === m.key ? 'bg-navy-700 text-white shadow-sm' : 'text-navy-600 hover:bg-navy-100'
+                  mode === m.key ? 'bg-[#E9967A] text-black shadow-sm' : 'text-black hover:bg-[#FFE4C4]'
                 }`}
               >
                 {m.label}
@@ -1252,7 +1252,7 @@ export function PUReportPage() {
                         type="checkbox"
                         checked={roomTypeFilter.includes(rt)}
                         onChange={() => toggleRoomType(rt)}
-                        className="accent-gold-500"
+                        className="accent-[#E9967A]"
                       />
                       {rt}
                     </label>
@@ -1558,7 +1558,7 @@ export function PUReportPage() {
                 type="checkbox"
                 checked={pdfSelection.block1}
                 onChange={(e) => setPdfSelection((p) => ({ ...p, block1: e.target.checked }))}
-                className="accent-gold-500 w-4 h-4"
+                className="accent-[#E9967A] w-4 h-4"
               />
               <TrendingUp size={16} className="text-gold-600" />
               Tổng quan 24h (Real-time)
@@ -1568,7 +1568,7 @@ export function PUReportPage() {
                 type="checkbox"
                 checked={pdfSelection.block2}
                 onChange={(e) => setPdfSelection((p) => ({ ...p, block2: e.target.checked }))}
-                className="accent-gold-500 w-4 h-4"
+                className="accent-[#E9967A] w-4 h-4"
               />
               <Layers size={16} className="text-navy-600" />
               Thống kê theo nguồn 24h (Real-time)
@@ -1578,7 +1578,7 @@ export function PUReportPage() {
                 type="checkbox"
                 checked={pdfSelection.block3}
                 onChange={(e) => setPdfSelection((p) => ({ ...p, block3: e.target.checked }))}
-                className="accent-gold-500 w-4 h-4"
+                className="accent-[#E9967A] w-4 h-4"
               />
               <CalendarDays size={16} className="text-navy-600" />
               Thống kê theo giai đoạn đặt

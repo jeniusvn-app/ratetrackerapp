@@ -23,13 +23,13 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy-700 via-navy-600 to-navy-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FFDAB9] via-[#FFE4C4] to-[#FFDAB9] p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-pop p-8 fade-in">
         <div className="flex items-center justify-center mb-6">
           <Logo className="w-12 h-12 mr-3" />
           <div>
-            <h1 className="text-xl font-bold text-navy-800 leading-tight">RateTracker AI</h1>
-            <p className="text-xs text-navy-500">by Jenius</p>
+            <h1 className="text-xl font-bold text-black leading-tight">RateTracker AI</h1>
+            <p className="text-xs text-black/60">by Jenius</p>
           </div>
         </div>
 

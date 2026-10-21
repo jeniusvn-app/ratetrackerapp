@@ -128,7 +128,7 @@ export function DatePicker({
                   onClick={() => selectDate(d)}
                   className={`text-center text-xs rounded-md py-1.5 transition-colors ${
                     isSelected
-                      ? 'bg-gold-500 text-white font-bold'
+                      ? 'bg-[#E9967A] text-black font-bold'
                       : isToday
                         ? 'bg-navy-100 text-navy-800 font-semibold'
                         : isSaturday

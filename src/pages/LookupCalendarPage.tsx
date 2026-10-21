@@ -341,7 +341,7 @@ export function LookupCalendarPage() {
                 onClick={() => setPickerOpen((v) => !v)}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   pickerOpen
-                    ? 'bg-navy-700 text-white shadow-sm'
+                    ? 'bg-[#E9967A] text-black shadow-sm'
                     : 'bg-navy-50 text-navy-800 hover:bg-navy-100 border border-navy-100'
                 }`}
               >
@@ -402,8 +402,8 @@ export function LookupCalendarPage() {
               </span>
               <span className="text-navy-200">|</span>
               <span className="inline-flex items-center gap-1.5 text-xs">
-                <span className="inline-block w-3 h-3 rounded-sm bg-gold-500" />
-                <span className="font-semibold text-gold-600">B2B Rate</span>
+                <span className="inline-block w-3 h-3 rounded-sm bg-[#E9967A]" />
+                <span className="font-semibold text-[#A85644]">B2B Rate</span>
                 <span className="text-navy-400">— Giá B2B / Đại lý</span>
               </span>
             </>
@@ -441,7 +441,7 @@ export function LookupCalendarPage() {
                       : isSaturday
                         ? 'bg-amber-50/30 border-amber-50'
                         : 'bg-navy-50/40 border-navy-50'
-                  } ${isToday ? 'ring-2 ring-gold-500' : ''}`}
+                  } ${isToday ? 'ring-2 ring-[#E9967A]' : ''}`}
                 >
                   <div
                     className={`text-[11px] font-semibold mb-1 ${
@@ -490,7 +490,7 @@ export function LookupCalendarPage() {
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-navy-500">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-gold-500" /> Hôm nay
+              <span className="inline-block w-2 h-2 rounded-full bg-[#E9967A]" /> Hôm nay
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-sm bg-amber-50 border border-amber-100" /> Thứ 7

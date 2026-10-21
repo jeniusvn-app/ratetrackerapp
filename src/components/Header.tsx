@@ -46,14 +46,14 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-navy-700 text-white shadow-md">
+      <header className="sticky top-0 z-40 bg-[#FFDAB9] text-black shadow-md">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center flex-shrink-0">
               <Logo />
               <div className="leading-tight">
-                <div className="font-bold text-sm sm:text-base">RateTracker AI</div>
-                <div className="text-[10px] text-navy-200 -mt-0.5">by Jenius</div>
+                <div className="font-bold text-sm sm:text-base text-black">RateTracker AI</div>
+                <div className="text-[10px] text-black/60 -mt-0.5">by Jenius</div>
               </div>
             </div>
 
@@ -65,8 +65,8 @@ export function Header({
                   onClick={() => setPage(n.key)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     page === n.key
-                      ? 'bg-white text-navy-800 shadow-sm'
-                      : 'text-navy-100 hover:bg-navy-600'
+                      ? 'bg-[#E9967A] text-black shadow-sm'
+                      : 'text-black hover:bg-[#FFE4C4]'
                   }`}
                 >
                   {n.label}
@@ -90,18 +90,18 @@ export function Header({
               >
                 Đổi mật khẩu
               </Button>
-              <Button variant="ghost" size="sm" onClick={logout} className="text-white hover:bg-navy-600">
+              <Button variant="ghost" size="sm" onClick={logout} className="text-black hover:bg-[#FFE4C4]">
                 Đăng xuất
               </Button>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="lg:hidden p-2 rounded-md hover:bg-navy-600"
+                className="lg:hidden p-2 rounded-md hover:bg-[#FFE4C4]"
                 aria-label="Menu"
               >
                 <div className="space-y-1">
-                  <span className="block w-5 h-0.5 bg-white" />
-                  <span className="block w-5 h-0.5 bg-white" />
-                  <span className="block w-5 h-0.5 bg-white" />
+                  <span className="block w-5 h-0.5 bg-black" />
+                  <span className="block w-5 h-0.5 bg-black" />
+                  <span className="block w-5 h-0.5 bg-black" />
                 </div>
               </button>
             </div>
@@ -119,8 +119,8 @@ export function Header({
                   }}
                   className={`px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${
                     page === n.key
-                      ? 'bg-white text-navy-800'
-                      : 'text-navy-100 hover:bg-navy-600'
+                      ? 'bg-[#E9967A] text-black'
+                      : 'text-black hover:bg-[#FFE4C4]'
                   }`}
                 >
                   {n.label}
@@ -131,7 +131,7 @@ export function Header({
                   setPwOpen(true);
                   setMenuOpen(false);
                 }}
-                className="px-3 py-2 rounded-lg text-sm font-medium text-left text-navy-100 hover:bg-navy-600"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-left text-black hover:bg-[#FFE4C4]"
               >
                 Đổi mật khẩu
               </button>

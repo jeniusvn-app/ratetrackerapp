@@ -9,14 +9,14 @@ export function Logo({ className = 'w-9 h-9 mr-2 flex-shrink-0' }: { className?:
     >
       <defs>
         <linearGradient id="j-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FF7E36" />
-          <stop offset="50%" stopColor="#FF3E3D" />
+          <stop offset="0%" stopColor="#E9967A" />
+          <stop offset="50%" stopColor="#D98265" />
           <stop offset="100%" stopColor="#C8102E" />
         </linearGradient>
         <linearGradient id="bar-grad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#4A154B" />
-          <stop offset="50%" stopColor="#8A2BE2" />
-          <stop offset="100%" stopColor="#E024A2" />
+          <stop offset="0%" stopColor="#E9967A" />
+          <stop offset="50%" stopColor="#D98265" />
+          <stop offset="100%" stopColor="#C8102E" />
         </linearGradient>
       </defs>
       <path

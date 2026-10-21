@@ -525,7 +525,7 @@ export function RateRequestsPage() {
                                 : prev.filter((x) => x !== rt.id),
                             );
                           }}
-                          className="accent-gold-500"
+                          className="accent-[#E9967A]"
                         />
                         {rt.name}
                       </label>

@@ -89,7 +89,7 @@ function MultiSelect({
                   if (el) el.indeterminate = indeterminate;
                 }}
                 onChange={selectAll}
-                className="accent-navy-700"
+                className="accent-[#E9967A]"
               />
               <span className="font-medium text-navy-700">Tất cả</span>
             </label>
@@ -102,7 +102,7 @@ function MultiSelect({
                   type="checkbox"
                   checked={selected.includes(opt)}
                   onChange={() => toggle(opt)}
-                  className="accent-navy-700"
+                  className="accent-[#E9967A]"
                 />
                 <span className="text-navy-700">{opt}</span>
               </label>
@@ -535,7 +535,7 @@ export function MasterPriceListPage() {
               if (f) handleImport(f);
               e.target.value = '';
             }}
-            className="block w-full text-sm text-navy-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gold-500 file:text-white file:font-medium file:cursor-pointer hover:file:bg-gold-600"
+            className="block w-full text-sm text-black file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#E9967A] file:text-black file:font-medium file:cursor-pointer hover:file:bg-[#D98265]"
           />
           {importMsg && (
             <div

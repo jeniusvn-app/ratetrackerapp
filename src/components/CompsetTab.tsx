@@ -543,22 +543,22 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
           onClick={() => setSubTab('setup')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
             subTab === 'setup'
-              ? 'bg-blue-50/80 text-[#0f172a] font-semibold border-2 border-[#1e293b] shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
+              ? 'bg-[#E9967A] text-black font-semibold border-2 border-[#D98265] shadow-xs'
+              : 'bg-[#FFE4C4] text-black hover:bg-[#FFDAB9] font-medium border border-[#FFE4C4]'
           }`}
         >
-          <Building2 size={16} className={subTab === 'setup' ? 'text-[#1e293b]' : 'text-slate-400'} />
+          <Building2 size={16} className={subTab === 'setup' ? 'text-black' : 'text-black/50'} />
           Compset Setup
         </button>
         <button
           onClick={() => setSubTab('tracker')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
             subTab === 'tracker'
-              ? 'bg-blue-50/80 text-[#0f172a] font-semibold border-2 border-[#1e293b] shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
+              ? 'bg-[#E9967A] text-black font-semibold border-2 border-[#D98265] shadow-xs'
+              : 'bg-[#FFE4C4] text-black hover:bg-[#FFDAB9] font-medium border border-[#FFE4C4]'
           }`}
         >
-          <Swords size={16} className={subTab === 'tracker' ? 'text-[#1e293b]' : 'text-slate-400'} />
+          <Swords size={16} className={subTab === 'tracker' ? 'text-black' : 'text-black/50'} />
           Rate Tracker & Action Insights
         </button>
       </div>
@@ -915,7 +915,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                   {selectedDateData.searchAdr > 0 ? formatVND(Math.round(selectedDateData.searchAdr)) : '—'}
                 </div>
               </div>
-              <div className={`rounded-xl border px-4 py-3 ${selectedDateData.ppi > 0 ? 'bg-navy-700 text-white border-navy-700' : 'bg-white border-navy-100'}`}>
+              <div className={`rounded-xl border px-4 py-3 ${selectedDateData.ppi > 0 ? 'bg-[#E9967A] text-black border-[#D98265]' : 'bg-white border-navy-100'}`}>
                 <div className={`text-xs font-medium ${selectedDateData.ppi > 0 ? 'text-navy-200' : 'text-navy-500'}`}>Price Position Index</div>
                 <div className={`text-xl font-bold mono-num mt-1 ${selectedDateData.ppi > 0 ? 'text-white' : 'text-navy-400'}`}>
                   {selectedDateData.ppi > 0 ? `${selectedDateData.ppi.toFixed(0)}%` : '—'}
@@ -951,7 +951,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                   >
                     <div className="flex items-start gap-2 mb-2">
                       <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isActive ? 'bg-navy-700 text-white' : 'bg-navy-100 text-navy-500'
+                        isActive ? 'bg-[#E9967A] text-black' : 'bg-navy-100 text-navy-500'
                       }`}>
                         {s.num}
                       </div>

@@ -416,7 +416,7 @@ export function DailyRateUpdatePage() {
                     type="checkbox"
                     checked={selectedRoomTypeIds.includes(rt.id)}
                     onChange={() => toggleRoomType(rt.id)}
-                    className="accent-gold-500"
+                    className="accent-[#E9967A]"
                   />
                   {rt.name}
                 </label>
@@ -678,7 +678,7 @@ export function DailyRateUpdatePage() {
               if (f) handleImport(f);
               e.target.value = '';
             }}
-            className="block w-full text-sm text-navy-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gold-500 file:text-white file:font-medium file:cursor-pointer hover:file:bg-gold-600"
+            className="block w-full text-sm text-black file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#E9967A] file:text-black file:font-medium file:cursor-pointer hover:file:bg-[#D98265]"
           />
           {importMsg && (
             <div

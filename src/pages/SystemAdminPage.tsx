@@ -88,7 +88,7 @@ export function SystemAdminPage() {
               onClick={() => setTab(t.key)}
               className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-navy-700 text-white shadow-sm'
+                  ? 'bg-[#E9967A] text-black shadow-sm'
                   : 'text-navy-600 hover:bg-navy-50'
               }`}
             >
@@ -1041,7 +1041,7 @@ function ToggleRow({ label, checked, onChange, disabled }: { label: string; chec
         type="button"
         onClick={() => !disabled && onChange(!checked)}
         disabled={disabled}
-        className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${checked ? 'bg-gold-500' : 'bg-navy-200'}`}
+        className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${checked ? 'bg-[#E9967A]' : 'bg-navy-200'}`}
       >
         <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform mt-0.5 ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
@@ -1421,8 +1421,8 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                         key={opt.v}
                         className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
                           checked
-                            ? 'border-gold-500/40 bg-gold-500/10 text-navy-800'
-                            : 'border-navy-100 bg-white/60 text-navy-700 hover:bg-navy-50'
+                            ? 'border-[#E9967A]/40 bg-[#E9967A]/10 text-black'
+                            : 'border-navy-100 bg-white/60 text-black hover:bg-navy-50'
                         }`}
                       >
                         <input
@@ -1432,7 +1432,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                           onChange={() =>
                             setForm({ ...form, permissions: { ...form.permissions, mini_rms: opt.v } })
                           }
-                          className="accent-gold-500 mt-0.5"
+                          className="accent-[#E9967A] mt-0.5"
                         />
                         <div>
                           <div className="font-medium">{opt.label}</div>
@@ -1462,7 +1462,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
           )}
 
           {form.role === 'admin' ? (
-            <div className="rounded-lg bg-gold-500/10 border border-gold-500/20 px-3 py-2 text-xs text-gold-700">
+            <div className="rounded-lg bg-[#E9967A]/10 border border-[#E9967A]/20 px-3 py-2 text-xs text-[#A85644]">
               Admin có quyền xem tất cả khách sạn (allowed_hotel_ids = ["*"]).
             </div>
           ) : (
@@ -1479,7 +1479,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleAllowed(h.id)}
-                        className="accent-navy-700"
+                        className="accent-[#E9967A]"
                       />
                       <span className="text-navy-700">{h.name}</span>
                     </label>

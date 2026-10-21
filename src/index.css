@@ -12,8 +12,8 @@ html, body, #root {
 
 body {
   font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
-  background-color: #F8FAFC;
-  color: #1D2951;
+  background-color: #FFF9F5;
+  color: #000000;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -27,7 +27,7 @@ body {
 
 /* Thin custom scrollbar */
 .thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.thin-scroll::-webkit-scrollbar-thumb { background: #A8BCD9; border-radius: 8px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #E9967A; border-radius: 8px; }
 .thin-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* Smooth fade for tab/page transitions */
