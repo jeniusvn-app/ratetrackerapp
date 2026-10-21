@@ -5,6 +5,7 @@ export interface CalendarPermissions {
   view: boolean;
   edit_rates: boolean;
   view_net_b2b: boolean;
+  can_request_price_change: boolean;
 }
 
 export interface SettingsPermissions {
@@ -19,13 +20,13 @@ export interface UserPermissions {
 }
 
 export const DEFAULT_PERMISSIONS: UserPermissions = {
-  calendar: { view: true, edit_rates: false, view_net_b2b: false },
+  calendar: { view: true, edit_rates: false, view_net_b2b: false, can_request_price_change: false },
   mini_rms: 'none',
   settings: { manage_inventory: false, manage_users: false },
 };
 
 export const ADMIN_PERMISSIONS: UserPermissions = {
-  calendar: { view: true, edit_rates: true, view_net_b2b: true },
+  calendar: { view: true, edit_rates: true, view_net_b2b: true, can_request_price_change: true },
   mini_rms: 'full',
   settings: { manage_inventory: true, manage_users: true },
 };

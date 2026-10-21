@@ -191,7 +191,7 @@ export function getUserPermissions(u: AppUser | null): UserPermissions {
   // Fallback: derive from legacy boolean fields
   const miniRms: MiniRmsAccess = u.can_access_pu_report ? 'full' : u.can_upload_pu_only ? 'data_only' : 'none';
   return {
-    calendar: { view: true, edit_rates: false, view_net_b2b: false },
+    calendar: { view: true, edit_rates: false, view_net_b2b: false, can_request_price_change: false },
     mini_rms: miniRms,
     settings: { manage_inventory: false, manage_users: false },
   };
@@ -207,6 +207,12 @@ export function canEditRates(u: AppUser | null): boolean {
   if (!u) return false;
   if (u.role === 'admin') return true;
   return getUserPermissions(u).calendar.edit_rates;
+}
+
+export function canRequestPriceChange(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).calendar.can_request_price_change;
 }
 
 export function canViewNetB2B(u: AppUser | null): boolean {

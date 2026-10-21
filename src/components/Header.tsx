@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth, isAdmin, canViewCalendar, canEditRates, canManageUsers, canAccessMiniRms } from '@/auth/AuthContext';
+import { useAuth, isAdmin, canViewCalendar, canEditRates, canManageUsers, canAccessMiniRms, canRequestPriceChange } from '@/auth/AuthContext';
 import { Logo } from '@/components/Logo';
 import { Button, Badge } from '@/components/ui';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
@@ -37,7 +37,7 @@ export function Header({
   const visibleNav = NAV.filter((n) => {
     if (n.key === 'lookup') return canViewCalendar(user);
     if (n.key === 'price_list') return true;
-    if (n.key === 'rate_requests') return true;
+    if (n.key === 'rate_requests') return canEditRates(user) || canRequestPriceChange(user);
     if (n.key === 'update') return canEditRates(user);
     if (n.key === 'pu_report') return canAccessMiniRms(user);
     if (n.key === 'admin') return isAdmin(user) || canManageUsers(user);

@@ -1011,17 +1011,17 @@ interface UserFormState {
 }
 
 const DEFAULT_USER_PERMISSIONS: UserPermissions = {
-  calendar: { view: true, edit_rates: false, view_net_b2b: false },
+  calendar: { view: true, edit_rates: false, view_net_b2b: false, can_request_price_change: false },
   mini_rms: 'none',
   settings: { manage_inventory: false, manage_users: false },
 };
 
 function permissionsFromUser(u: AppUser): UserPermissions {
-  if (u.role === 'admin') return { calendar: { view: true, edit_rates: true, view_net_b2b: true }, mini_rms: 'full', settings: { manage_inventory: true, manage_users: true } };
+  if (u.role === 'admin') return { calendar: { view: true, edit_rates: true, view_net_b2b: true, can_request_price_change: true }, mini_rms: 'full', settings: { manage_inventory: true, manage_users: true } };
   if (u.permissions) return u.permissions;
   const miniRms: MiniRmsAccess = u.can_access_pu_report ? 'full' : u.can_upload_pu_only ? 'data_only' : 'none';
   return {
-    calendar: { view: true, edit_rates: false, view_net_b2b: false },
+    calendar: { view: true, edit_rates: false, view_net_b2b: false, can_request_price_change: false },
     mini_rms: miniRms,
     settings: { manage_inventory: false, manage_users: false },
   };
@@ -1065,7 +1065,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     allowed: [],
     canAccessPuReport: false,
     canUploadPuOnly: false,
-    permissions: { ...DEFAULT_USER_PERMISSIONS, calendar: { view: true, edit_rates: false, view_net_b2b: false }, settings: { manage_inventory: false, manage_users: false } },
+    permissions: { ...DEFAULT_USER_PERMISSIONS, calendar: { view: true, edit_rates: false, view_net_b2b: false, can_request_price_change: false }, settings: { manage_inventory: false, manage_users: false } },
   });
 
   const loadAll = useCallback(async () => {
@@ -1145,7 +1145,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     setSaving(true);
     const allowedHotels = form.role === 'admin' ? ['*'] : form.allowed;
     const perms = form.role === 'admin'
-      ? { calendar: { view: true, edit_rates: true, view_net_b2b: true }, mini_rms: 'full' as MiniRmsAccess, settings: { manage_inventory: true, manage_users: true } }
+      ? { calendar: { view: true, edit_rates: true, view_net_b2b: true, can_request_price_change: true }, mini_rms: 'full' as MiniRmsAccess, settings: { manage_inventory: true, manage_users: true } }
       : form.permissions;
     const payload = {
       username: form.username.trim(),
@@ -1282,6 +1282,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                           <span className={`inline-block w-2 h-2 rounded-full ${permissionsFromUser(u).calendar.view ? 'bg-emerald-500' : 'bg-navy-200'}`} />
                           <span className="text-navy-600">Lịch: {permissionsFromUser(u).calendar.view ? 'Xem' : '—'}</span>
                           {permissionsFromUser(u).calendar.edit_rates && <span className="text-emerald-600">+ Sửa giá</span>}
+                          {!permissionsFromUser(u).calendar.edit_rates && permissionsFromUser(u).calendar.can_request_price_change && <span className="text-amber-600">+ YC giá</span>}
                           {permissionsFromUser(u).calendar.view_net_b2b && <span className="text-gold-600">+ Net/B2B</span>}
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -1384,6 +1385,22 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                     onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, edit_rates: v } } })}
                   />
                   <ToggleRow
+                    label="Gửi yêu cầu chỉnh giá (Request Price Changes)"
+                    checked={form.permissions.calendar.can_request_price_change}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, can_request_price_change: v } } })}
+                    disabled={form.permissions.calendar.edit_rates}
+                  />
+                  {form.permissions.calendar.edit_rates && (
+                    <div className="text-xs text-navy-400 px-3 -mt-1">
+                      Khi "Chỉnh sửa & Cập nhật Giá" đang BẬT, quyền gửi yêu cầu chỉnh giá tự động được cấp.
+                    </div>
+                  )}
+                  {!form.permissions.calendar.edit_rates && form.permissions.calendar.can_request_price_change && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 -mt-1">
+                      Người dùng sẽ thấy nút "Yêu cầu chỉnh giá" thay vì nút chỉnh/sửa giá trực tiếp trên Lịch.
+                    </div>
+                  )}
+                  <ToggleRow
                     label="Xem giá Net & B2B Rate"
                     checked={form.permissions.calendar.view_net_b2b}
                     onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, view_net_b2b: v } } })}
@@ -1394,9 +1411,9 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                 <div className="space-y-2">
                   <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Nhóm 2: Mô-đun MiniRMS & Báo cáo (Page 5)</div>
                   {([
-                    { v: 'full' as MiniRmsAccess, label: 'Full quyền MiniRMS', desc: 'Tab 1 PU Report & Tab 2 Analytics, KPIs, ADR, Charts & Imports' },
-                    { v: 'data_only' as MiniRmsAccess, label: 'Chỉ xem Dữ liệu thô & Import Data', desc: 'Bảng dữ liệu thô & upload files; ẩn KPIs/ADR/Revenue & Tab 2' },
-                    { v: 'none' as MiniRmsAccess, label: 'Không có quyền MiniRMS', desc: 'Ẩn Page 5 khỏi điều hướng' },
+                    { v: 'full' as MiniRmsAccess, label: 'Full quyền MiniRMS', desc: 'Tab 1 Data & PU Report, Tab 2 Analytics & MiniRMS, Tab 3 Compset' },
+                    { v: 'data_only' as MiniRmsAccess, label: 'Chỉ xem Dữ liệu thô & Import', desc: 'Chỉ truy cập Tab 1 Data & PU Report; ẩn Tab 2 & Tab 3' },
+                    { v: 'none' as MiniRmsAccess, label: 'Không có quyền MiniRMS', desc: 'Ẩn hoàn toàn Page 5 khỏi thanh điều hướng Navigation Bar' },
                   ]).map((opt) => {
                     const checked = form.permissions.mini_rms === opt.v;
                     return (
