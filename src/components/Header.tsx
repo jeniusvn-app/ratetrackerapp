@@ -17,7 +17,7 @@ const NAV: NavItem[] = [
   { key: 'price_list', label: 'Bảng giá' },
   { key: 'rate_requests', label: 'Yêu cầu chỉnh giá' },
   { key: 'update', label: 'Cập nhật giá', restricted: true },
-  { key: 'pu_report', label: 'PU Report', restricted: true },
+  { key: 'pu_report', label: 'MiniRMS', restricted: true },
   { key: 'admin', label: 'Quản trị', restricted: true },
 ];
 

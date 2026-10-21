@@ -758,7 +758,7 @@ export function PUReportPage() {
       )}
 
       <div>
-        <h1 className="text-lg font-semibold text-navy-800">PU Report — Báo cáo Pickup & MiniRMS</h1>
+        <h1 className="text-lg font-semibold text-navy-800">MiniRMS — Báo cáo Pickup & Phân tích</h1>
         <p className="text-xs text-navy-400 mt-0.5">
           Phân tích đặt phòng theo ngày đến, kênh bán và loại phòng. Mỗi lần import sẽ thêm dữ liệu mới (không ghi đè).
         </p>

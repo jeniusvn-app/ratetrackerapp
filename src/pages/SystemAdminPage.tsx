@@ -1250,7 +1250,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                 <th className="text-left px-3 py-2 font-semibold">Email thông báo</th>
                 <th className="text-left px-3 py-2 font-semibold">Vai trò</th>
                 <th className="text-left px-3 py-2 font-semibold">Khách sạn được xem</th>
-                <th className="text-left px-3 py-2 font-semibold">PU Report</th>
+                <th className="text-left px-3 py-2 font-semibold">MiniRMS</th>
                 <th className="text-left px-3 py-2 font-semibold">Ngày tạo</th>
                 <th className="text-right px-3 py-2 font-semibold w-24">Thao tác</th>
               </tr>
