@@ -7,6 +7,7 @@ import {
   Swords,
   Lightbulb,
   TrendingUp,
+  Activity,
 } from 'lucide-react';
 import { DatePicker } from '@/components/DatePicker';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +35,7 @@ interface DailyEntry {
   selling_rate: number | null;
   availability_status: string;
   pace_status: string | null;
+  search_row_index: number | null;
 }
 
 interface ManualRoomsEntry {
@@ -44,13 +46,28 @@ interface ManualRoomsEntry {
 }
 
 const PACE_OPTIONS = [
-  { value: 'very_available', label: '🟢 Còn rất nhiều phòng (Bán chậm)' },
-  { value: 'selling_fast', label: '🟡 Bán chạy / Đặt nhiều' },
-  { value: 'sold_out', label: '🔴 Sold Out / Đã hết phòng' },
-  { value: 'no_data', label: '⚪ Chưa có dữ liệu' },
+  { value: 'fast', label: '🟢 Đang bán nhanh / Fast Pace' },
+  { value: 'normal', label: '🟡 Bán bình thường / Normal Pace' },
+  { value: 'slow', label: '🔴 Bán chậm / Slow Pace' },
+  { value: 'sold_out', label: '⚫ Sold Out / Đã hết phòng' },
 ];
 
+const PACE_LABELS: Record<string, string> = {
+  fast: 'Bán nhanh',
+  normal: 'Bình thường',
+  slow: 'Bán chậm',
+  sold_out: 'Sold Out',
+};
+
+const PACE_COLORS: Record<string, string> = {
+  fast: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  normal: 'text-amber-700 bg-amber-50 border-amber-200',
+  slow: 'text-red-700 bg-red-50 border-red-200',
+  sold_out: 'text-navy-700 bg-navy-100 border-navy-200',
+};
+
 const MAX_COMPETITORS = 5;
+const MAX_SEARCH_ROWS = 5;
 
 export function CompsetTab({ hotelId }: { hotelId: string }) {
   const [subTab, setSubTab] = useState<'setup' | 'tracker'>('setup');
@@ -139,10 +156,21 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
   useEffect(() => {
     const draft = new Map<string, string>();
     entries.forEach((e) => {
-      const key = `${e.date}|${e.entry_type}|${e.competitor_id || e.competitor_name}`;
-      if (e.selling_rate != null) draft.set(`${key}|rate`, String(e.selling_rate));
-      if (e.availability_status) draft.set(`${key}|avail`, e.availability_status);
-      if (e.pace_status) draft.set(`${key}|pace`, e.pace_status);
+      // Direct entries keyed by competitor_id
+      if (e.entry_type === 'direct') {
+        const key = `${e.date}|direct|${e.competitor_id}`;
+        if (e.selling_rate != null) draft.set(`${key}|rate`, String(e.selling_rate));
+        if (e.availability_status) draft.set(`${key}|avail`, e.availability_status);
+        if (e.pace_status) draft.set(`${key}|pace`, e.pace_status);
+      }
+      // Search entries keyed by search_row_index
+      if (e.entry_type === 'search') {
+        const rowIdx = e.search_row_index ?? 0;
+        const key = `${e.date}|search|${rowIdx}`;
+        if (e.competitor_name) draft.set(`${key}|name`, e.competitor_name);
+        if (e.pace_status) draft.set(`${key}|pace`, e.pace_status);
+        if (e.selling_rate != null) draft.set(`${key}|rate`, String(e.selling_rate));
+      }
     });
     setEntryDraft(draft);
   }, [entries]);
@@ -174,14 +202,12 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     setSavingSetup(true);
     setSetupMsg(null);
     try {
-      // Delete existing competitors not in edit list (by id)
       const existingIds = competitors.map((c) => c.id);
       const keepIds = editComps.filter((c) => !c.id.startsWith('new-')).map((c) => c.id);
       const toDelete = existingIds.filter((id) => !keepIds.includes(id));
       if (toDelete.length > 0) {
         await supabase.from('compset_competitors').delete().in('id', toDelete);
       }
-      // Upsert competitors
       for (let i = 0; i < editComps.length; i++) {
         const c = editComps[i];
         if (!c.name.trim()) continue;
@@ -208,41 +234,123 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
 
   // ============ TRACKER: Save entries ============
 
-  const saveTrackerEntry = async (
-    date: string,
-    entryType: 'direct' | 'search',
-    competitorId: string | null,
-    competitorName: string,
-  ) => {
+  const saveDirectEntry = async (date: string, competitorId: string, competitorName: string) => {
     if (!hotelId) return;
     setSavingTracker(true);
     setTrackerMsg(null);
-    const key = `${date}|${entryType}|${competitorId || competitorName}`;
+    const key = `${date}|direct|${competitorId}`;
     const rate = Number(entryDraft.get(`${key}|rate`) || 0) || null;
     const avail = entryDraft.get(`${key}|avail`) || 'available';
-    const pace = entryDraft.get(`${key}|pace`) || null;
+    const pace = entryDraft.get(`${key}|pace`) || 'normal';
 
     const payload = {
       hotel_id: hotelId,
       date,
-      entry_type: entryType,
+      entry_type: 'direct' as const,
       competitor_id: competitorId,
       competitor_name: competitorName,
       selling_rate: rate,
-      availability_status: avail,
+      availability_status: pace === 'sold_out' ? 'sold_out' : 'available',
       pace_status: pace,
+      search_row_index: 0,
     };
 
     const { error } = await supabase
       .from('compset_daily_entries')
-      .upsert(payload, { onConflict: 'hotel_id,date,competitor_id,entry_type' });
+      .upsert(payload, { onConflict: 'hotel_id,date,entry_type,competitor_id' });
 
     if (error) {
       setTrackerMsg({ kind: 'err', text: `Lỗi: ${error.message}` });
     } else {
-      setTrackerMsg({ kind: 'ok', text: `Đã lưu entry cho ${toDMY(date)}.` });
+      setTrackerMsg({ kind: 'ok', text: `Đã lưu Direct entry cho ${competitorName}.` });
       await loadEntries();
     }
+    setSavingTracker(false);
+  };
+
+  const saveSearchRow = async (date: string, rowIdx: number) => {
+    if (!hotelId) return;
+    setSavingTracker(true);
+    setTrackerMsg(null);
+    const key = `${date}|search|${rowIdx}`;
+    const name = entryDraft.get(`${key}|name`) || '';
+    const pace = entryDraft.get(`${key}|pace`) || 'normal';
+    const rate = Number(entryDraft.get(`${key}|rate`) || 0) || null;
+
+    if (!name.trim()) {
+      setTrackerMsg({ kind: 'err', text: 'Vui lòng nhập tên đối thủ Search Compset.' });
+      setSavingTracker(false);
+      return;
+    }
+
+    const payload = {
+      hotel_id: hotelId,
+      date,
+      entry_type: 'search' as const,
+      competitor_id: null,
+      competitor_name: name.trim(),
+      selling_rate: rate,
+      availability_status: pace === 'sold_out' ? 'sold_out' : 'available',
+      pace_status: pace,
+      search_row_index: rowIdx,
+    };
+
+    const { error } = await supabase
+      .from('compset_daily_entries')
+      .upsert(payload, { onConflict: 'hotel_id,date,entry_type,search_row_index' });
+
+    if (error) {
+      setTrackerMsg({ kind: 'err', text: `Lỗi: ${error.message}` });
+    } else {
+      setTrackerMsg({ kind: 'ok', text: `Đã lưu Search entry "${name.trim()}" cho ${toDMY(date)}.` });
+      await loadEntries();
+    }
+    setSavingTracker(false);
+  };
+
+  const saveAllSearchRows = async (date: string) => {
+    if (!hotelId) return;
+    setSavingTracker(true);
+    setTrackerMsg(null);
+    let errors = 0;
+    let saved = 0;
+
+    for (let i = 1; i <= MAX_SEARCH_ROWS; i++) {
+      const key = `${date}|search|${i}`;
+      const name = entryDraft.get(`${key}|name`) || '';
+      if (!name.trim()) continue;
+
+      const pace = entryDraft.get(`${key}|pace`) || 'normal';
+      const rate = Number(entryDraft.get(`${key}|rate`) || 0) || null;
+
+      const payload = {
+        hotel_id: hotelId,
+        date,
+        entry_type: 'search' as const,
+        competitor_id: null,
+        competitor_name: name.trim(),
+        selling_rate: rate,
+        availability_status: pace === 'sold_out' ? 'sold_out' : 'available',
+        pace_status: pace,
+        search_row_index: i,
+      };
+
+      const { error } = await supabase
+        .from('compset_daily_entries')
+        .upsert(payload, { onConflict: 'hotel_id,date,entry_type,search_row_index' });
+
+      if (error) errors++;
+      else saved++;
+    }
+
+    if (errors > 0) {
+      setTrackerMsg({ kind: 'err', text: `Lỗi lưu ${errors} dòng Search.` });
+    } else if (saved > 0) {
+      setTrackerMsg({ kind: 'ok', text: `Đã lưu ${saved} dòng Search Compset cho ${toDMY(date)}.` });
+    } else {
+      setTrackerMsg({ kind: 'err', text: 'Không có dòng nào để lưu. Vui lòng nhập tên đối thủ.' });
+    }
+    await loadEntries();
     setSavingTracker(false);
   };
 
@@ -252,16 +360,14 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     setTrackerMsg(null);
     const rateKey = `${date}|my_rate`;
     const occKey = `${date}|manual_occ`;
-    const soldKey = `${date}|manual_sold`;
     const myRate = Number(entryDraft.get(rateKey) || 0) || null;
     const manualOcc = Number(entryDraft.get(occKey) || 0) || null;
-    const manualSold = Number(entryDraft.get(soldKey) || 0) || 0;
 
     const existing = manualEntries.get(date);
     const payload = {
       hotel_id: hotelId,
       date,
-      actual_rooms_sold: existing?.actual_rooms_sold ?? manualSold,
+      actual_rooms_sold: existing?.actual_rooms_sold ?? 0,
       my_rate: myRate,
       manual_occupancy: manualOcc,
     };
@@ -288,15 +394,16 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     // My rate
     const manual = manualEntries.get(selectedDate);
     const myRate = manual?.my_rate ?? null;
+    const myOccupancy = manual?.manual_occupancy ?? null;
 
-    // Direct compset rates (available only)
+    // Direct compset entries
     const directEntries = dayEntries.filter((e) => e.entry_type === 'direct');
-    const directAvail = directEntries.filter((e) => e.availability_status === 'available' && e.selling_rate != null);
-    const directAdr = directAvail.length > 0
-      ? directAvail.reduce((s, e) => s + (Number(e.selling_rate) || 0), 0) / directAvail.length
+    const directWithRates = directEntries.filter((e) => e.pace_status !== 'sold_out' && e.selling_rate != null);
+    const directAdr = directWithRates.length > 0
+      ? directWithRates.reduce((s, e) => s + (Number(e.selling_rate) || 0), 0) / directWithRates.length
       : 0;
 
-    // Search compset rates
+    // Search compset entries
     const searchEntries = dayEntries.filter((e) => e.entry_type === 'search');
     const searchWithRates = searchEntries.filter((e) => e.selling_rate != null);
     const searchAdr = searchWithRates.length > 0
@@ -306,23 +413,56 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     // Price Position Index
     const ppi = directAdr > 0 && myRate != null ? (myRate / directAdr) * 100 : 0;
 
-    // Search compset pace: aggregate — if any direct comp name matches a search entry name, include its rate
+    // Direct compset names (for matching search rate eligibility)
     const directNames = new Set(directEntries.map((e) => e.competitor_name.toLowerCase()));
+
+    // ============ COMBINED PACE ANALYSIS ============
+    // Collect pace from both direct and search entries
+    const allPaceStatuses: string[] = [];
+    directEntries.forEach((e) => {
+      if (e.pace_status) allPaceStatuses.push(e.pace_status);
+    });
+    searchEntries.forEach((e) => {
+      if (e.pace_status) allPaceStatuses.push(e.pace_status);
+    });
+
+    const totalComps = allPaceStatuses.length;
+    const fastCount = allPaceStatuses.filter((p) => p === 'fast').length;
+    const slowCount = allPaceStatuses.filter((p) => p === 'slow').length;
+    const soldOutCount = allPaceStatuses.filter((p) => p === 'sold_out').length;
+    const normalCount = allPaceStatuses.filter((p) => p === 'normal').length;
+
+    // Majority thresholds
+    const majoritySoldOutOrFast = totalComps > 0 && (soldOutCount + fastCount) >= Math.ceil(totalComps / 2);
+    const majoritySlow = totalComps > 0 && slowCount >= Math.ceil(totalComps / 2);
+    const majorityFast = totalComps > 0 && fastCount >= Math.ceil(totalComps / 2);
 
     // Determine scenario
     const myRateVal = myRate ?? 0;
     const isMyRateHigher = directAdr > 0 && myRateVal > directAdr;
     const isMyRateEqualOrLower = directAdr > 0 && myRateVal <= directAdr;
-    const competitorsSoldOut = directEntries.length > 0 && directEntries.every((e) => e.availability_status === 'sold_out');
-    const competitorsAvailable = directAvail.length > 0;
-    const searchPace = searchEntries[0]?.pace_status || 'no_data';
-    const searchVeryAvailable = searchPace === 'very_available';
+    const isMyRateLower = directAdr > 0 && myRateVal < directAdr;
+
+    // My hotel occupancy is slow (low rooms sold or low occupancy)
+    const myHotelSlow = myOccupancy != null && myOccupancy >= 0 && myOccupancy < 30;
 
     let scenario = 0;
-    if (isMyRateHigher && competitorsAvailable) scenario = 1;
-    else if (isMyRateHigher && competitorsSoldOut) scenario = 2;
-    else if (isMyRateEqualOrLower && (searchVeryAvailable || competitorsAvailable)) scenario = 3;
-    else if (isMyRateEqualOrLower && !competitorsAvailable && !searchVeryAvailable) scenario = 4;
+    if (isMyRateHigher && (majoritySlow || (totalComps > 0 && !majoritySoldOutOrFast))) {
+      // Scenario 1: High Rate + Comps Available/Slow
+      scenario = 1;
+    } else if (isMyRateHigher && majoritySoldOutOrFast) {
+      // Scenario 2: High Rate + Comps Sold Out / Fast
+      scenario = 2;
+    } else if (isMyRateEqualOrLower && majoritySlow) {
+      // Scenario 3: Equal/Lower Rate + Market Slow
+      scenario = 3;
+    } else if (isMyRateLower && majorityFast && myHotelSlow) {
+      // Scenario 4: Lower Rate + Comps Selling Fast BUT You are Slow
+      scenario = 4;
+    } else if (isMyRateHigher && totalComps === 0) {
+      // Fallback: high rate but no comp data
+      scenario = 1;
+    }
 
     return {
       myRate: myRateVal,
@@ -333,13 +473,19 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
       directEntries,
       searchEntries,
       directNames,
+      totalComps,
+      fastCount,
+      slowCount,
+      soldOutCount,
+      normalCount,
+      myOccupancy,
     };
   }, [selectedDate, entries, manualEntries]);
 
   const SCENARIOS = [
     {
       num: 1,
-      title: 'Kịch bản 1: Giá của bạn cao hơn Compset + Đối thủ còn rất nhiều phòng',
+      title: 'Kịch bản 1: Giá của bạn cao hơn Compset + Đối thủ còn nhiều phòng (Bán chậm)',
       diagnosis: 'Giá của bạn đang cao hơn mặt bằng chung. Khách hàng so sánh giá trên OTA và chọn đặt chỗ của đối thủ.',
       proposal: 'Giá của bạn đang cao hơn trung bình Compset và đối thủ vẫn còn nhiều phòng. Đề xuất: Cân nhắc giảm giá nhẹ về sát mức Direct Compset ADR để tăng cạnh tranh.',
       color: 'border-red-300 bg-red-50/60',
@@ -347,7 +493,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     },
     {
       num: 2,
-      title: 'Kịch bản 2: Giá của bạn cao hơn Compset BUT Đối thủ đã Sold out (hoặc sắp hết)',
+      title: 'Kịch bản 2: Giá của bạn cao hơn Compset + Đối thủ đã Sold Out / Bán nhanh',
       diagnosis: 'Nhu cầu thị trường tốt! Đối thủ giá rẻ đã bán hết phòng trước, bây giờ nhu cầu đang dồn về chỗ của bạn.',
       proposal: 'Đối thủ giá rẻ đã hết phòng! Nhu cầu thị trường đang dồn về bạn. Đề xuất: Giữ nguyên giá cao hoặc chỉ điều chỉnh giảm nhẹ, không cần xả giá gấp.',
       color: 'border-emerald-300 bg-emerald-50/60',
@@ -355,15 +501,15 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
     },
     {
       num: 3,
-      title: 'Kịch bản 3: Giá của bạn bằng/rẻ hơn Compset + Đối thủ cũng ế (Còn rất nhiều phòng)',
+      title: 'Kịch bản 3: Giá bằng/rẻ hơn Compset + Toàn thị trường đang Bán chậm',
       diagnosis: 'Nhu cầu toàn thị trường đang giảm (Low Market Demand). Ngày này cả khu vực đều vắng khách, không phải do giá của bạn đắt.',
-      proposal: 'Toàn thị trường đang vắng khách (Compset cũng chưa bán được). Việc giảm giá sâu lúc này chưa chắc hiệu quả. Đề xuất: Tập trung đẩy mạnh bài viết bán gói Combo/Ưu đãi trên Zalo/Fanpage hoặc bật Last-Minute Deal trước 1 ngày.',
+      proposal: 'Toàn thị trường đang vắng khách (Compset cũng bán chậm). Việc giảm giá sâu lúc này chưa chắc hiệu quả. Đề xuất: Tập trung đẩy mạnh bài viết bán gói Combo/Ưu đãi trên Zalo/Fanpage hoặc bật Last-Minute Deal trước 1 ngày.',
       color: 'border-amber-300 bg-amber-50/60',
       activeColor: 'border-amber-400 bg-amber-50 shadow-md ring-2 ring-amber-300/40',
     },
     {
       num: 4,
-      title: 'Kịch bản 4: Giá bạn rẻ hơn Compset + Đối thủ vẫn bán được nhưng bạn Ế',
+      title: 'Kịch bản 4: Giá bạn rẻ hơn Compset + Đối thủ bán nhanh BUT bạn vẫn ế',
       diagnosis: 'Giá của bạn rất tốt so với thị trường nhưng vẫn chưa có khách. Vấn đề nằm ở Kênh bán, Hình ảnh hoặc Điểm đánh giá (Review).',
       proposal: 'Đề xuất kiểm tra lại: 1. Đã mở bán đầy đủ trên các sàn OTA chưa? 2. Hình ảnh/Điểm đánh giá review có bị giảm không? 3. Bài đăng Zalo/Fanpage có bị trôi không?',
       color: 'border-navy-300 bg-navy-50/60',
@@ -376,6 +522,18 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
   };
 
   const getDraft = (key: string): string => entryDraft.get(key) ?? '';
+
+  // Market pace summary text
+  const marketPaceSummary = useMemo(() => {
+    if (!selectedDateData || selectedDateData.totalComps === 0) return null;
+    const { fastCount, slowCount, soldOutCount, normalCount, totalComps } = selectedDateData;
+    const parts: string[] = [];
+    if (fastCount > 0) parts.push(`${fastCount}/${totalComps} bán nhanh`);
+    if (normalCount > 0) parts.push(`${normalCount}/${totalComps} bình thường`);
+    if (slowCount > 0) parts.push(`${slowCount}/${totalComps} bán chậm`);
+    if (soldOutCount > 0) parts.push(`${soldOutCount}/${totalComps} sold out`);
+    return parts.join(' · ');
+  }, [selectedDateData]);
 
   return (
     <div className="space-y-4">
@@ -536,10 +694,10 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                 </div>
               </div>
 
-              {/* Row 2: Direct Compset */}
+              {/* Row 2: Direct Compset — with Pace Status dropdown */}
               <div className="rounded-lg border border-navy-200 bg-white p-3 space-y-2">
                 <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">
-                  Row 2: Direct Compset ({competitors.length}/{MAX_COMPETITORS})
+                  Row 2: Direct Compset ({competitors.length}/{MAX_COMPETITORS}) — Rate + Availability + Pace
                 </div>
                 {competitors.length === 0 ? (
                   <EmptyState message="Chưa cấu hình đối thủ. Vui lòng thêm đối thủ ở Sub-tab Compset Setup." />
@@ -550,14 +708,14 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                         <tr>
                           <th className="text-left px-2 py-2 font-semibold">Đối thủ</th>
                           <th className="text-center px-2 py-2 font-semibold">Selling Rate</th>
-                          <th className="text-center px-2 py-2 font-semibold">Trạng thái</th>
+                          <th className="text-center px-2 py-2 font-semibold">Tốc độ bán (Pace)</th>
                           <th className="w-16 px-2 py-2"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {competitors.map((comp) => {
                           const key = `${selectedDate}|direct|${comp.id}`;
-                          const avail = getDraft(`${key}|avail`) || 'available';
+                          const pace = getDraft(`${key}|pace`) || 'normal';
                           return (
                             <tr key={comp.id} className="border-t border-navy-50">
                               <td className="px-2 py-2 text-navy-700 font-medium">{comp.name}</td>
@@ -567,28 +725,30 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                                   value={getDraft(`${key}|rate`)}
                                   onChange={(e) => setDraft(`${key}|rate`, e.target.value)}
                                   placeholder="0"
-                                  className="w-20 text-center bg-white border border-navy-200 rounded-md px-1.5 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400"
+                                  disabled={pace === 'sold_out'}
+                                  className={`w-20 text-center bg-white border border-navy-200 rounded-md px-1.5 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400 ${
+                                    pace === 'sold_out' ? 'opacity-40 cursor-not-allowed bg-navy-50' : ''
+                                  }`}
                                 />
                               </td>
                               <td className="px-2 py-2 text-center">
-                                <div className="inline-flex rounded-md overflow-hidden border border-navy-200">
-                                  <button
-                                    onClick={() => setDraft(`${key}|avail`, 'available')}
-                                    className={`px-2 py-1 text-xs font-medium ${avail === 'available' ? 'bg-emerald-500 text-white' : 'bg-white text-navy-600 hover:bg-navy-50'}`}
+                                <div className="inline-flex items-center gap-1">
+                                  <select
+                                    value={pace}
+                                    onChange={(e) => setDraft(`${key}|pace`, e.target.value)}
+                                    className={`text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-navy-400 cursor-pointer ${
+                                      PACE_COLORS[pace] || 'border-navy-200 bg-white text-navy-700'
+                                    }`}
                                   >
-                                    Available
-                                  </button>
-                                  <button
-                                    onClick={() => setDraft(`${key}|avail`, 'sold_out')}
-                                    className={`px-2 py-1 text-xs font-medium ${avail === 'sold_out' ? 'bg-red-500 text-white' : 'bg-white text-navy-600 hover:bg-navy-50'}`}
-                                  >
-                                    Sold Out
-                                  </button>
+                                    {PACE_OPTIONS.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
                                 </div>
                               </td>
                               <td className="px-2 py-2 text-center">
                                 <button
-                                  onClick={() => saveTrackerEntry(selectedDate, 'direct', comp.id, comp.name)}
+                                  onClick={() => saveDirectEntry(selectedDate, comp.id, comp.name)}
                                   disabled={savingTracker}
                                   className="p-1 rounded-md text-navy-400 hover:bg-navy-100 hover:text-navy-700"
                                   title="Lưu"
@@ -606,45 +766,120 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
                 {selectedDateData && selectedDateData.directAdr > 0 && (
                   <div className="text-xs font-semibold text-navy-700 bg-navy-50 rounded-md px-3 py-1.5">
                     Direct Compset ADR: <span className="mono-num text-navy-900">{formatVND(Math.round(selectedDateData.directAdr))}</span>
-                    {' '}({selectedDateData.directEntries.filter((e) => e.availability_status === 'available').length} available)
+                    {' '}({selectedDateData.directEntries.filter((e) => e.pace_status !== 'sold_out').length} available)
                   </div>
                 )}
               </div>
 
-              {/* Row 3: Search Compset */}
+              {/* Row 3: Search Compset — 5-row multi-hotel grid */}
               <div className="rounded-lg border border-navy-200 bg-white p-3 space-y-2">
-                <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Row 3: Search Compset (Pace Dropdown)</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Search Compset Pace Status">
-                    <Select
-                      value={getDraft(`${selectedDate}|search|search_comp|pace`) || 'no_data'}
-                      onChange={(v) => setDraft(`${selectedDate}|search|search_comp|pace`, v)}
-                    >
-                      {PACE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Search Compset Rate (nếu khớp Direct Compset)">
-                    <input
-                      type="number"
-                      value={getDraft(`${selectedDate}|search|search_comp|rate`)}
-                      onChange={(e) => setDraft(`${selectedDate}|search|search_comp|rate`, e.target.value)}
-                      placeholder="0 (tùy chọn)"
-                      className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-                    />
-                  </Field>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="subtle" size="sm" onClick={() => saveTrackerEntry(selectedDate, 'search', null, 'search_comp')} disabled={savingTracker}>
-                    <Save size={14} /> Lưu Search Compset
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">
+                    Row 3: Search Compset — Theo dõi tối đa {MAX_SEARCH_ROWS} đối thủ
+                  </div>
+                  <Button variant="gold" size="sm" onClick={() => saveAllSearchRows(selectedDate)} disabled={savingTracker}>
+                    <Save size={14} /> {savingTracker ? 'Đang lưu…' : 'Lưu tất cả Search'}
                   </Button>
-                  {selectedDateData && selectedDateData.searchAdr > 0 && (
-                    <span className="text-xs font-semibold text-navy-700">
-                      Search Compset ADR: <span className="mono-num text-navy-900">{formatVND(Math.round(selectedDateData.searchAdr))}</span>
-                    </span>
-                  )}
                 </div>
+                <div className="overflow-x-auto thin-scroll">
+                  <table className="w-full text-xs">
+                    <thead className="bg-navy-50 text-navy-700">
+                      <tr>
+                        <th className="text-left px-2 py-2 font-semibold w-8">#</th>
+                        <th className="text-left px-2 py-2 font-semibold">Tên đối thủ (Search)</th>
+                        <th className="text-center px-2 py-2 font-semibold">Tốc độ bán (Pace)</th>
+                        <th className="text-center px-2 py-2 font-semibold">Selling Rate (nếu khớp Direct)</th>
+                        <th className="w-12 px-2 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from({ length: MAX_SEARCH_ROWS }, (_, i) => i + 1).map((rowIdx) => {
+                        const key = `${selectedDate}|search|${rowIdx}`;
+                        const name = getDraft(`${key}|name`);
+                        const pace = getDraft(`${key}|pace`) || 'normal';
+                        const rate = getDraft(`${key}|rate`);
+                        // Rate field only active if name matches a Direct Compset
+                        const matchedDirectComp = selectedDateData?.directNames.has(name.trim().toLowerCase());
+                        return (
+                          <tr key={rowIdx} className="border-t border-navy-50">
+                            <td className="px-2 py-2 text-navy-400 font-semibold">{rowIdx}</td>
+                            <td className="px-2 py-2">
+                              <input
+                                value={name}
+                                onChange={(e) => setDraft(`${key}|name`, e.target.value)}
+                                placeholder={`VD: Hotel ${String.fromCharCode(64 + rowIdx)}`}
+                                className="w-full bg-white border border-navy-200 rounded-md px-2 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400"
+                              />
+                              {matchedDirectComp && (
+                                <span className="text-[10px] text-emerald-600 font-medium ml-1">✓ Khớp Direct</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <select
+                                value={pace}
+                                onChange={(e) => setDraft(`${key}|pace`, e.target.value)}
+                                className={`text-xs rounded-md border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-navy-400 cursor-pointer ${
+                                  PACE_COLORS[pace] || 'border-navy-200 bg-white text-navy-700'
+                                }`}
+                              >
+                                {PACE_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <input
+                                type="number"
+                                value={rate}
+                                onChange={(e) => setDraft(`${key}|rate`, e.target.value)}
+                                placeholder={matchedDirectComp ? 'Nhập giá' : 'Chỉ khi khớp Direct'}
+                                disabled={!matchedDirectComp}
+                                className={`w-24 text-center bg-white border border-navy-200 rounded-md px-1.5 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400 ${
+                                  !matchedDirectComp ? 'opacity-40 cursor-not-allowed bg-navy-50' : 'border-emerald-200 bg-emerald-50/30'
+                                }`}
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <button
+                                onClick={() => saveSearchRow(selectedDate, rowIdx)}
+                                disabled={savingTracker || !name.trim()}
+                                className="p-1 rounded-md text-navy-400 hover:bg-navy-100 hover:text-navy-700 disabled:opacity-30"
+                                title="Lưu dòng này"
+                              >
+                                <Save size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Market pace summary badge */}
+                {marketPaceSummary && selectedDateData && (
+                  <div className="flex items-center gap-2 bg-navy-50 rounded-lg px-3 py-2 text-xs">
+                    <Activity size={14} className="text-navy-600 flex-shrink-0" />
+                    <span className="font-semibold text-navy-700">Tổng quan Tốc độ Thị trường:</span>
+                    <span className="text-navy-800 font-medium">{marketPaceSummary}</span>
+                    {selectedDateData.fastCount > selectedDateData.slowCount && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                        <TrendingUp size={10} /> Thị trường đang nóng
+                      </span>
+                    )}
+                    {selectedDateData.slowCount > selectedDateData.fastCount && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
+                        Thị trường đang chậm
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {selectedDateData && selectedDateData.searchAdr > 0 && (
+                  <div className="text-xs font-semibold text-navy-700">
+                    Search Compset ADR: <span className="mono-num text-navy-900">{formatVND(Math.round(selectedDateData.searchAdr))}</span>
+                  </div>
+                )}
               </div>
 
               {trackerMsg && (
@@ -691,6 +926,11 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
             </div>
             <div className="text-xs text-navy-400">
               Ngày đang xem: <span className="font-semibold text-navy-700">{selectedDate ? toDMY(selectedDate) : '—'}</span>
+              {selectedDateData && selectedDateData.totalComps > 0 && (
+                <span className="ml-2 text-navy-500">
+                  · {selectedDateData.totalComps} đối thủ có dữ liệu pace
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
