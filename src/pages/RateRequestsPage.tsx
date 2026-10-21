@@ -448,7 +448,7 @@ export function RateRequestsPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 text-sm font-medium text-navy-700">
-                  <CalendarRange size={15} className="text-gold-600" />
+                  <CalendarRange size={15} className="text-gold-600 text-[#A85644]" />
                   Giai đoạn áp dụng
                 </div>
                 <div className="flex items-center gap-2">
