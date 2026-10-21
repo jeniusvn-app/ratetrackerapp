@@ -36,21 +36,32 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Sử dụng @layer utilities để ăn theo cơ chế của Tailwind */
-@layer utilities {
-  /* Ép tất cả các số ngày trên Lịch thành màu đen đậm */
-  .grid div > span,
-  .grid button > span,
-  [class*="calendar"] span,
-  [class*="day"] span {
-    color: #000000 !important;
-    font-weight: 700 !important;
-  }
+/* ==========================================================
+   ÉP TOÀN BỘ TEXT TRONG BẢNG & TIÊU ĐỀ VỀ MÀU ĐEN/XÁM ĐẬM
+   ========================================================== */
 
-  /* Đảm bảo các chữ/số bị mờ do opacity cũng lên màu rõ */
-  [class*="calendar"] .text-slate-400,
-  [class*="calendar"] .opacity-40 {
-    color: #475569 !important; /* Màu xám đậm vừa phải cho ngày tháng khác */
-    opacity: 1 !important;
-  }
+/* 1. Ép tất cả thẻ bảng, tiêu đề cột (th, td) và văn bản trong bảng về màu rõ nét */
+table th, 
+table td, 
+[class*="table"] th, 
+[class*="table"] td {
+  color: #1e293b !important; /* Xám đen đậm cực kỳ nét */
+  font-weight: 600 !important;
+}
+
+/* 2. Sửa màu các dòng Ngày đến, Thứ, PU Sold, Manual Rooms Sold */
+.text-xs, .text-sm, p, span, label {
+  /* Loại bỏ các lớp chữ màu cam mờ mịt */
+  color: #0f172a;
+}
+
+/* 3. Giữ nguyên màu cho các Nút bấm chính (Button) để không hỏng UI */
+button, .btn, [role="button"] {
+  color: inherit;
+}
+
+/* 4. Đảm bảo các ô Input (như ô nhập số 0) hiện rõ chữ và viền */
+input, select, textarea {
+  color: #000000 !important;
+  font-weight: 700 !important;
 }
