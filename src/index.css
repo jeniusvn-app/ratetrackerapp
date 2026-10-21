@@ -37,8 +37,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MASTER STABILITY FIX
-   Sửa dứt điểm lỗi đè màu giữa các thành phần (0 Token AI)
+   MINIRMS / RATETRACKER AI - MASTER STABLE UI & DROPDOWN FIX
+   Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH (MODERN PALETTE) */
@@ -86,7 +86,45 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. SỬA TRIỆT ĐỂ BẢNG DỮ LIỆU PHÍA DƯỚI (HIỆN RÕ NÉT CẢ BẢNG) */
+/* 4. SỬA TRIỆT ĐỂ HỘP CHỌN (SELECT, DROPDOWN, RADIX POPOVER PORTAL) */
+/* Định dạng ô chọn Input / Select ban đầu */
+input, select, textarea, [role="combobox"] {
+  border-color: #BAB2B5 !important;
+  border-width: 1px !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+/* Định dạng Menu thả xuống khi bấm vào ô chọn (Dropdown Portal) */
+[data-radix-popper-content-wrapper],
+[role="listbox"],
+.select-content,
+[class*="popover-content"] {
+  background-color: #ffffff !important;
+  border: 1px solid #BAB2B5 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  z-index: 9999 !important;
+}
+
+/* Item bên trong Dropdown thả xuống */
+[role="option"],
+.select-item,
+[class*="popover"] button,
+[class*="popover"] div {
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+/* Khi di chuột hoặc chọn item trong Dropdown */
+[role="option"]:hover,
+[role="option"][data-highlighted],
+.select-item:hover {
+  background-color: #EEE2DC !important;
+  color: #123C69 !important;
+}
+
+/* 5. PHẦN BẢNG DỮ LIỆU BÊN DƯỚI (TABLE) */
 table th {
   color: #123C69 !important;
   font-weight: 700 !important;
@@ -95,30 +133,28 @@ table th {
 table td, 
 table td span, 
 table td div {
-  color: #1e293b !important; /* Ép toàn bộ dòng Ngày, Loại phòng, Giá thu về, Giá CMS về màu đen xám rõ nét */
+  color: #1e293b !important;
   font-weight: 400 !important;
 }
 
-/* Giá bán hiển thị màu Xanh Navy đậm nét */
 table td.font-bold, 
-table td [class*="font-bold"],
-table td:nth-child(4) {
+table td [class*="font-bold"] {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* 5. PHẦN BỘ CÔNG CỤ TRÊN (LOẠI PHÒNG, CHECKBOX, GIAI ĐOẠN ÁP DỤNG) */
-.font-medium, .font-semibold {
-  color: #123C69;
-}
-
-/* Tiêu đề & Label Checkbox (Superior King, Deluxe...) */
+/* 6. LABELS, CHECKBOX & TIÊU ĐỀ PHỤ */
 label, [class*="checkbox"], [class*="label"] {
   color: #0f172a !important;
   font-weight: 500 !important;
 }
 
-/* 6. KHÔI PHỤC MÀU PHÂN BIỆT TRÊN LỊCH & CÁC BADGE */
+h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
+  color: #123C69 !important;
+  font-weight: 700 !important;
+}
+
+/* 7. MÀU DÒNG GIÁ TRÊN LỊCH & BADGES */
 .rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
 .rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
 .rdp [class*="text-purple-"], .rdp [class*="text-violet-"] { color: #7c3aed !important; }
@@ -131,27 +167,6 @@ svg, svg * {
 [class*="bg-amber-"], [class*="bg-orange-"] {
   background-color: #fef3c7 !important;
   color: #92400e !important;
-}
-
-/* 7. KHUNG VIỀN & NÚT BẤM */
-input, select, textarea {
-  border-color: #BAB2B5 !important;
-  border-width: 1px !important;
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-}
-
-input:focus, select:focus {
-  border-color: #123C69 !important;
-  outline: none !important;
-}
-
-table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
-  border-color: rgba(186, 178, 181, 0.5) !important;
-}
-
-.bg-white, .card {
-  background-color: #ffffff !important;
 }
 
 button.bg-primary, 
