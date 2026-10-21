@@ -34,6 +34,7 @@ interface PickupRecord {
   created_at: string;
   quantity: number | null;
   hotel_id: string | null;
+  cancel_date: string | null;
 }
 
 interface InventoryConfig {

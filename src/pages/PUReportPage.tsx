@@ -71,6 +71,7 @@ interface PickupRecord {
   booked_datetime: string | null;
   created_at: string;
   quantity: number | null;
+  cancel_date: string | null;
 }
 
 type Mode = 'gross' | 'net' | 'cancel';
@@ -199,6 +200,28 @@ function downloadSampleExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Pickup Sample');
   XLSX.writeFile(wb, 'Mau_Bao_Cao_Pickup_Sample.xlsx');
+}
+
+// ---------- Cancellation Sample Excel generator ----------
+function buildCancellationSampleRows(): (string | number)[][] {
+  return [
+    ['Code', 'Room Type', 'Rate', 'Arrival', 'Departure', 'Reason', 'Source', 'Cancelled Date'],
+    ['5526503577', 'Economy Double', '445054', '19/01', '20/01', 'Customer Request', 'BOOKING.COM', '02/10/2026'],
+    ['5526503580', 'Deluxe City View', '1250000', '20/01', '23/01', 'Price too high', 'Traveloka', '03/10/2026'],
+    ['5526503582', 'Suite', '2100000', '21/01', '23/01', 'Schedule change', 'AGODA', '05/10/2026'],
+  ];
+}
+
+function downloadCancellationSampleExcel() {
+  const rows = buildCancellationSampleRows();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
+    { wch: 20 }, { wch: 18 }, { wch: 18 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cancellation Sample');
+  XLSX.writeFile(wb, 'Mau_Bao_Cao_Cancellation_Sample.xlsx');
 }
 
 // ---------- Analytics helpers ----------
@@ -351,6 +374,8 @@ export function PUReportPage() {
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cancelFileRef = useRef<HTMLInputElement | null>(null);
+  const [sampleDropdownOpen, setSampleDropdownOpen] = useState(false);
+  const sampleDropdownRef = useRef<HTMLDivElement>(null);
 
   // 30-day date list for manual rooms sold grid
   const manualDates = useMemo(() => {
@@ -552,7 +577,136 @@ export function PUReportPage() {
 
   const onCancelFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) void handleImport(f);
+    if (f) void handleCancellationImport(f);
+  };
+
+  // Close sample dropdown on outside click
+  useEffect(() => {
+    if (!sampleDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (sampleDropdownRef.current && !sampleDropdownRef.current.contains(e.target as Node)) {
+        setSampleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [sampleDropdownOpen]);
+
+  // ---------- Cancellation Import & Reconciliation ----------
+  const handleCancellationImport = async (file: File) => {
+    setImporting(true);
+    setToast(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) {
+        setToast({ kind: 'err', text: 'File không chứa sheet dữ liệu.' });
+        setImporting(false);
+        return;
+      }
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+      if (json.length === 0) {
+        setToast({ kind: 'err', text: 'File không có dòng dữ liệu nào.' });
+        setImporting(false);
+        return;
+      }
+
+      interface CancelRow {
+        code: string;
+        roomType: string;
+        rate: number;
+        arrival: string;
+        departure: string;
+        source: string;
+        cancelledDate: string | null;
+      }
+
+      const cancelRows: CancelRow[] = [];
+      let skipped = 0;
+      for (const raw of json) {
+        const code = String(raw['Code'] ?? raw['code'] ?? raw['Booking ID'] ?? raw['booking_id'] ?? '').trim();
+        const roomType = String(raw['Room Type'] ?? raw['room_type'] ?? '').trim();
+        const rate = Number(String(raw['Rate'] ?? raw['Room Rate'] ?? raw['room_rate'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
+        const arrivalRaw = raw['Arrival'] ?? raw['arrival'];
+        const departureRaw = raw['Departure'] ?? raw['departure'];
+        const source = String(raw['Source'] ?? raw['source'] ?? '').trim();
+        const cancelledRaw = raw['Cancelled Date'] ?? raw['cancelled_date'] ?? raw['Cancel Date'] ?? raw['cancel_date'] ?? null;
+
+        const arrDate = arrivalRaw ? excelSerialToDate(arrivalRaw) : null;
+        const depDate = departureRaw ? excelSerialToDate(departureRaw) : null;
+        const cancelDate = cancelledRaw ? excelSerialToDate(cancelledRaw) : null;
+
+        if (!code) {
+          skipped++;
+          continue;
+        }
+
+        cancelRows.push({
+          code,
+          roomType: roomType.toLowerCase().trim(),
+          rate,
+          arrival: arrDate ? toISODate(arrDate) : '',
+          departure: depDate ? toISODate(depDate) : '',
+          source: source.toLowerCase().trim(),
+          cancelledDate: cancelDate ? toISODate(cancelDate) : null,
+        });
+      }
+
+      if (cancelRows.length === 0) {
+        setToast({ kind: 'err', text: `Không có dòng hợp lệ.${skipped ? ` Bỏ qua ${skipped} dòng.` : ''}` });
+        setImporting(false);
+        return;
+      }
+
+      // Load all existing pickup records for the selected hotel to match against
+      const matchQuery = selectedHotelId
+        ? supabase.from('pickup_records').select('*').eq('hotel_id', selectedHotelId)
+        : supabase.from('pickup_records').select('*');
+      const { data: existing } = await matchQuery;
+      const existingRecs = (existing as PickupRecord[]) || [];
+
+      let matched = 0;
+      let unmatched = 0;
+
+      for (const cr of cancelRows) {
+        // Match by Code (booking_id), Room Type, Rate, Arrival, Departure, and Source
+        const match = existingRecs.find((r) => {
+          if ((r.booking_id || '').trim() !== cr.code) return false;
+          if ((r.room_type || '').toLowerCase().trim() !== cr.roomType) return false;
+          if (Number(r.room_rate) !== cr.rate) return false;
+          if (cr.arrival && (r.arrival_date || '') !== cr.arrival) return false;
+          if (cr.departure && (r.departure_date || '') !== cr.departure) return false;
+          if (cr.source && ((r.source || '').toLowerCase().trim() !== cr.source)) return false;
+          return true;
+        });
+
+        if (match) {
+          const { error: updErr } = await supabase
+            .from('pickup_records')
+            .update({ status: 'Cancelled', cancel_date: cr.cancelledDate })
+            .eq('id', match.id);
+          if (updErr) {
+            // Continue even if one update fails
+          } else {
+            matched++;
+          }
+        } else {
+          unmatched++;
+        }
+      }
+
+      setToast({
+        kind: matched > 0 ? 'ok' : 'info',
+        text: `Đã xử lý ${cancelRows.length} dòng hủy. Khớp ${matched} booking, không khớp ${unmatched}.${skipped ? ` Bỏ qua ${skipped} dòng.` : ''}`,
+      });
+      await loadAll();
+    } catch (e) {
+      setToast({ kind: 'err', text: `Lỗi đọc file hủy: ${(e as Error).message}` });
+    } finally {
+      setImporting(false);
+      if (cancelFileRef.current) cancelFileRef.current.value = '';
+    }
   };
 
   // ---------- Derived: sources & room types for filter selectors ----------
@@ -997,9 +1151,29 @@ export function PUReportPage() {
               <FileText size={16} /> {pdfExporting ? 'Đang tạo PDF…' : 'Xuất PDF'}
             </Button>
           )}
-          <Button variant="secondary" onClick={downloadSampleExcel}>
-            <Download size={16} /> Tải file Excel dữ liệu mẫu
-          </Button>
+          <div className="relative" ref={sampleDropdownRef}>
+            <Button variant="secondary" onClick={() => setSampleDropdownOpen((v) => !v)}>
+              <Download size={16} /> Tải file Excel dữ liệu mẫu
+            </Button>
+            {sampleDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-navy-200 shadow-pop py-1 min-w-[260px] fade-in">
+                <button
+                  onClick={() => { downloadSampleExcel(); setSampleDropdownOpen(false); }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors flex items-center gap-2"
+                >
+                  <Download size={14} className="text-gold-600" />
+                  File báo cáo Pickup mẫu
+                </button>
+                <button
+                  onClick={() => { downloadCancellationSampleExcel(); setSampleDropdownOpen(false); }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors flex items-center gap-2 border-t border-navy-50"
+                >
+                  <Download size={14} className="text-red-500" />
+                  File báo cáo Cancellation mẫu
+                </button>
+              </div>
+            )}
+          </div>
           <Button variant="subtle" onClick={() => setHistoryOpen(true)}>
             <History size={16} /> Lịch sử cập nhật
           </Button>
@@ -1383,6 +1557,7 @@ export function PUReportPage() {
                   {isFullAccess && <th className="text-right px-3 py-2 font-semibold">Doanh thu PU</th>}
                   {isFullAccess && <th className="text-right px-3 py-2 font-semibold">ADR trung bình</th>}
                   <th className="text-left px-3 py-2 font-semibold">Trạng thái</th>
+                  <th className="text-left px-3 py-2 font-semibold">Ngày hủy</th>
                 </tr>
               </thead>
               <tbody>
@@ -1427,6 +1602,9 @@ export function PUReportPage() {
                           <Badge tone="green">Confirmed</Badge>
                         )}
                       </td>
+                      <td className="px-3 py-2.5 mono-num text-navy-500 text-xs whitespace-nowrap">
+                        {r.cancel_date ? toDMY(r.cancel_date) : '—'}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1443,6 +1621,7 @@ export function PUReportPage() {
                   {isFullAccess && (
                     <td className="px-3 py-3 text-right mono-num text-gold-600">{formatVND(Math.round(summary.adr))}</td>
                   )}
+                  <td className="px-3 py-3" />
                   <td className="px-3 py-3" />
                 </tr>
               </tfoot>
