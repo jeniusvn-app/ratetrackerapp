@@ -389,7 +389,7 @@ export function LookupCalendarPage() {
             <span className="text-xs font-semibold text-navy-600 uppercase tracking-wide mr-1">Chú thích:</span>
             <span className="inline-flex items-center gap-1.5 text-xs text-navy-700">
               <span className="inline-block w-3 h-3 rounded-sm bg-navy-700" />
-              <span className="font-semibold text-[#A85644]">Ref. Selling</span>
+              <span className="font-semibold text-[#1e293b]">Ref. Selling</span>
               <span className="text-navy-400">— Giá bán tham chiếu</span>
             </span>
             <span className="text-navy-200">|</span>
