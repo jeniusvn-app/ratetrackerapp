@@ -36,9 +36,19 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Đổi toàn bộ số trên lịch sang màu đen */
-[class*="calendar"] span, 
-[class*="day"] span {
+/* Ép toàn bộ thẻ div và span chứa số ngày trên lịch sang màu đen */
+.grid div span,
+.grid button span,
+[class*="grid"] span,
+[class*="calendar"] *,
+[class*="day"] * {
   color: #000000 !important;
+  opacity: 1 !important;
   font-weight: 700 !important;
+}
+
+/* Giữ riêng cho các ô không phải ngày trong tháng màu xám nhẹ */
+.opacity-40 *, 
+.text-slate-400 * {
+  color: #94a3b8 !important;
 }
