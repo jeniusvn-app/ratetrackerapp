@@ -37,7 +37,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - PERFECT TEXT & WEIGHT FIX
+   MINIRMS / RATETRACKER AI - MASTER UI & PRICE COLORS FIX
    Tốn đúng 0 Token AI - Dán thay thế toàn bộ src/index.css
    ========================================================== */
 
@@ -54,14 +54,14 @@ body {
 body {
   background-color: #EEE2DC !important;
   color: #1e293b !important;
-  font-weight: 400 !important; /* Chữ thường mặc định KHÔNG IN ĐẬM */
+  font-weight: 400 !important;
 }
 
 header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (ACTIVE STATE RÕ RÀNG) */
+/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -86,55 +86,37 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. CHỮ NỘI DUNG THƯỜNG (BỎ IN ĐẬM, ĐỘ NÉT 100%) */
+/* 4. CHỮ THƯỜNG KHÔNG IN ĐẬM, ĐỘ NÉT RÕ RÀNG */
 p, span, label, td, div, input, select, textarea {
-  color: #1e293b !important; /* Màu đen xám rõ nét */
-  font-weight: 400 !important; /* KHÔNG in đậm cho văn bản thường */
+  font-weight: 400;
 }
 
-/* Ép các label checkbox (Deluxe Twin, Grand King...) hiển thị đen rõ nét */
-label, [class*="checkbox"], [class*="label"] {
+label, [class*="checkbox"] {
   color: #0f172a !important;
   font-weight: 500 !important;
 }
 
-/* Giữ IN ĐẬM CHỈ CHO TIÊU ĐỀ & ĐẦU CỘT BẢNG */
 h1, h2, h3, h4, h5, h6, th, .font-bold, .font-semibold {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* 5. ÉP MÀU DỮ LIỆU BẢNG LỊCH GIÁ KHÔNG BỊ CAM/NHÒE */
-table td, table td * {
-  color: #1e293b !important;
-  font-weight: 400 !important;
-}
+/* 5. KHÔI PHỤC MÀU SẮC PHÂN BIỆT CHO CÁC DÒNG GIÁ TRÊN Ô LỊCH & BẢNG */
+/* Trả lại màu tự nhiên cho text khi component gán màu riêng */
+[class*="text-blue-"], [class*="text-sky-"] { color: #123C69 !important; }
+[class*="text-amber-"], [class*="text-orange-"] { color: #d97706 !important; }
+[class*="text-emerald-"], [class*="text-green-"] { color: #059669 !important; }
+[class*="text-purple-"], [class*="text-violet-"] { color: #7c3aed !important; }
+[class*="text-rose-"], [class*="text-red-"] { color: #dc2626 !important; }
 
-/* Ghi đè triệt để các class mờ/cam của Tailwind */
-.text-muted-foreground, 
-[class*="text-slate-400"], 
-[class*="text-gray-400"], 
-[class*="text-orange-"], 
-[class*="text-amber-"] {
-  color: #334155 !important;
-}
-
-/* 6. GIỮ MÀU TỰ NHIÊN CHO ICON SVG VÀ BADGE TRẠNG THÁI */
+/* 6. GIỮ MÀU TỰ NHIÊN CHO ICON SVG & BADGE (PEAK DAY, BAR...) */
 svg, svg * {
   color: inherit;
 }
 
-[class*="text-green-"], [class*="bg-green-"],
-[class*="text-emerald-"], [class*="bg-emerald-"] {
-  color: #059669 !important;
-}
-
-[class*="text-red-"], [class*="bg-red-"] {
-  color: #dc2626 !important;
-}
-
-[class*="text-blue-"] {
-  color: #0284c7 !important;
+[class*="bg-amber-"], [class*="bg-orange-"] {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
 }
 
 /* 7. KHUNG VIỀN MỜ DỊU MẮT & CARD CONTAINER */
@@ -142,6 +124,7 @@ input, select, textarea {
   border-color: #BAB2B5 !important;
   border-width: 1px !important;
   background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 input:focus, select:focus {
