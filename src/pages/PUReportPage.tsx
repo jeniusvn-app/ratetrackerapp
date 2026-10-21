@@ -1159,16 +1159,22 @@ export function PUReportPage() {
               <div className="absolute top-full left-0 mt-1 z-30 bg-white rounded-lg border border-navy-200 shadow-pop py-1 min-w-[260px] fade-in">
                 <button
                   onClick={() => { downloadSampleExcel(); setSampleDropdownOpen(false); }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 text-sm font-semibold transition-colors flex items-center gap-2"
+                  style={{ color: '#123C69' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#EEE2DC'; e.currentTarget.style.color = '#AC3B61'; const svg = e.currentTarget.querySelector('svg'); if (svg) svg.style.color = '#AC3B61'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = '#123C69'; const svg = e.currentTarget.querySelector('svg'); if (svg) svg.style.color = '#123C69'; }}
                 >
-                  <Download size={14} className="text-gold-600" />
+                  <Download size={14} style={{ color: '#123C69' }} />
                   File báo cáo Pickup mẫu
                 </button>
                 <button
                   onClick={() => { downloadCancellationSampleExcel(); setSampleDropdownOpen(false); }}
-                  className="w-full text-left px-3 py-2.5 text-sm text-navy-700 hover:bg-navy-50 transition-colors flex items-center gap-2 border-t border-navy-50"
+                  className="w-full text-left px-3 py-2.5 text-sm font-semibold transition-colors flex items-center gap-2 border-t border-navy-50"
+                  style={{ color: '#123C69' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#EEE2DC'; e.currentTarget.style.color = '#AC3B61'; const svg = e.currentTarget.querySelector('svg'); if (svg) svg.style.color = '#AC3B61'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = '#123C69'; const svg = e.currentTarget.querySelector('svg'); if (svg) svg.style.color = '#123C69'; }}
                 >
-                  <Download size={14} className="text-red-500" />
+                  <Download size={14} style={{ color: '#123C69' }} />
                   File báo cáo Cancellation mẫu
                 </button>
               </div>
