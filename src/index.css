@@ -36,19 +36,21 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Ép toàn bộ thẻ div và span chứa số ngày trên lịch sang màu đen */
-.grid div span,
-.grid button span,
-[class*="grid"] span,
-[class*="calendar"] *,
-[class*="day"] * {
-  color: #000000 !important;
-  opacity: 1 !important;
-  font-weight: 700 !important;
-}
+/* Sử dụng @layer utilities để ăn theo cơ chế của Tailwind */
+@layer utilities {
+  /* Ép tất cả các số ngày trên Lịch thành màu đen đậm */
+  .grid div > span,
+  .grid button > span,
+  [class*="calendar"] span,
+  [class*="day"] span {
+    color: #000000 !important;
+    font-weight: 700 !important;
+  }
 
-/* Giữ riêng cho các ô không phải ngày trong tháng màu xám nhẹ */
-.opacity-40 *, 
-.text-slate-400 * {
-  color: #94a3b8 !important;
+  /* Đảm bảo các chữ/số bị mờ do opacity cũng lên màu rõ */
+  [class*="calendar"] .text-slate-400,
+  [class*="calendar"] .opacity-40 {
+    color: #475569 !important; /* Màu xám đậm vừa phải cho ngày tháng khác */
+    opacity: 1 !important;
+  }
 }
