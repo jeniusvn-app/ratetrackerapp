@@ -37,57 +37,65 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   ÉP TOÀN BỘ TEXT TRONG BẢNG & TIÊU ĐỀ VỀ MÀU ĐEN/XÁM ĐẬM
+   PALETTE MÀU MỚI (TỐN 0 TOKEN AI)
+   #EDC7B7 (Peach/Cam nhạt) | #EEE2DC (Kem sáng) | #BAB2B5 (Ghi dịu)
+   #123C69 (Xanh Navy đậm)  | #AC3B61 (Magenta nhấn)
    ========================================================== */
 
-/* 1. Ép tất cả thẻ bảng, tiêu đề cột (th, td) và văn bản trong bảng về màu rõ nét */
-table th, 
-table td, 
-[class*="table"] th, 
-[class*="table"] td {
-  color: #1e293b !important; /* Xám đen đậm cực kỳ nét */
+/* 1. Thiết lập CSS Variables toàn cục */
+:root {
+  --color-peach: #EDC7B7;
+  --color-cream: #EEE2DC;
+  --color-gray: #BAB2B5;
+  --color-navy: #123C69;
+  --color-magenta: #AC3B61;
+}
+
+/* 2. Nền ứng dụng & Header */
+body {
+  background-color: #EEE2DC !important; /* Gam kem nhạt dịu mắt */
+}
+
+header, nav, .bg-header {
+  background-color: #EDC7B7 !important; /* Cam nhạt phong thủy làm điểm nhấn thanh nav */
+}
+
+/* 3. Khung viền (Borders) & Các ô Input / Select */
+input, select, textarea, [class*="border"], .border, .border-dashed {
+  border-color: #123C69 !important; /* Viền Navy sắc nét, cực rõ cấu trúc card */
+}
+
+/* 4. Thẻ Card / Container chứa nội dung */
+.bg-white, .card, [class*="rounded-"] {
+  background-color: #ffffff !important;
+}
+
+/* 5. Nút bấm chính (Primary Action Buttons) */
+button.bg-primary, 
+button[type="submit"],
+.bg-salmon,
+[class*="bg-primary"] {
+  background-color: #123C69 !important; /* Nút Navy tạo vẻ uy tín, vững chãi */
+  color: #ffffff !important;
   font-weight: 600 !important;
 }
 
-/* 2. Sửa màu các dòng Ngày đến, Thứ, PU Sold, Manual Rooms Sold */
-.text-xs, .text-sm, p, span, label {
-  /* Loại bỏ các lớp chữ màu cam mờ mịt */
-  color: #0f172a;
+/* Nút bấm mua hàng / Nút nhấn mạnh đặc biệt (Accent / Highlight) */
+.btn-accent, .bg-magenta, button.btn-danger {
+  background-color: #AC3B61 !important; /* Hồng Magenta nổi bật */
+  color: #ffffff !important;
 }
 
-/* 3. Giữ nguyên màu cho các Nút bấm chính (Button) để không hỏng UI */
-button, .btn, [role="button"] {
-  color: inherit;
+/* 6. Văn bản & Tiêu đề (Đảm bảo contrast 100% không nhòe) */
+h1, h2, h3, h4, h5, h6, .font-bold {
+  color: #123C69 !important; /* Tiêu đề Xanh Navy đầm tính */
 }
 
-/* 4. Đảm bảo các ô Input (như ô nhập số 0) hiện rõ chữ và viền */
-input, select, textarea {
-  color: #000000 !important;
-  font-weight: 700 !important;
-}
-/* ==========================================================
-   ĐỔI TOÀN BỘ VIỀN (BORDER) SANG MÀU DARKSALMON (#E9967A)
-   ========================================================== */
-
-/* 1. Viền của các ô nhập liệu (Select, Input, Datepicker) */
-input, 
-select, 
-textarea,
-[class*="border"] {
-  border-color: #E9967A !important;
+p, span, label, td, th {
+  color: #1e293b !important; /* Text thường màu đen xám nét căng */
 }
 
-/* 2. Viền của các Card, Khối chứa (Container) và Nút bấm có border */
-.border,
-.border-dashed,
-[class*="rounded-"],
-.bg-white.rounded-xl,
-.bg-white.rounded-2xl {
-  border-color: #E9967A !important;
-}
-
-/* 3. Tăng nhẹ độ nét cho đường viền đứt nét (Empty state "Chưa có yêu cầu nào") */
-.border-dashed {
-  border-style: dashed !important;
-  border-width: 1.5px !important;
+/* Mắt lịch / Trạng thái phụ */
+.text-muted, .text-gray-500 {
+  color: #BAB2B5 !important;
 }
