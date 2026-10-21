@@ -979,7 +979,7 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
 
             {/* Mandatory disclaimer */}
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
-              <span className="font-semibold">Lưu ý quan trọng:</span> Các kịch bản trên được hệ thống tổng hợp tự động dựa theo dữ liệu đầu vào và chỉ mang tính chất tham khảo. Quyết định điều chỉnh giá cuối cùng hoàn toàn thuộc về chủ khách sạn dựa trên tình hình thực tế.
+              <span className="font-semibold">Lưu ý quan trọng:</span> Các nhận định và gợi ý hành động được hệ thống đưa ra dựa trên dữ liệu hiện có, nhằm hỗ trợ người dùng nhận diện dấu hiệu bất thường và xác định hướng phân tích tiếp theo. Đây không phải kết luận chắc chắn về nguyên nhân. Người dùng cần xem xét thêm tình hình thực tế, các yếu tố liên quan và bối cảnh vận hành trước khi đưa ra quyết định.
             </div>
           </Card>
         </>
