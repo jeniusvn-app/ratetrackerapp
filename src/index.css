@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - BADGE & MATRIX UNIFORMITY FIX
-   Author: Vibe Coding Expert (0 Token Cost)
+   MINIRMS / RATETRACKER AI - ONE-TIME ULTIMATE GLOBAL FIX
+   Tốn đúng 0 Token AI - Dán đè toàn bộ src/index.css
    ========================================================== */
 
-/* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
+/* 1. KHAI BÁO MÀU TOÀN CỤC & SỬA BIẾN MÀU CỦA SHADCN/TAILWIND */
 :root {
   color-scheme: light !important;
   --color-peach: #EDC7B7;
@@ -52,9 +52,10 @@ body {
 
   --popover-foreground: #0f172a !important;
   --muted-foreground: #334155 !important;
+  --text-muted: #334155 !important;
 }
 
-/* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
+/* 2. NỀN ỨNG DỤNG & HEADER BAR */
 body {
   background-color: #EEE2DC !important;
   color: #0f172a !important;
@@ -65,10 +66,8 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
-header nav a, 
-header nav button,
-.bg-[#EDC7B7] button {
+/* 3. MENU HEADER (ACTIVE STATE) */
+header nav a, header nav button, .bg-[#EDC7B7] button {
   background-color: transparent !important;
   color: #123C69 !important;
   font-weight: 600 !important;
@@ -78,12 +77,8 @@ header nav button,
   border-radius: 8px !important;
 }
 
-header nav a.active,
-header nav button.active,
-header nav [aria-current="page"],
-header nav .bg-white,
-.bg-[#EDC7B7] .bg-white,
-.bg-[#EDC7B7] [data-state="active"] {
+header nav a.active, header nav button.active, header nav [aria-current="page"],
+header nav .bg-white, .bg-[#EDC7B7] .bg-white, .bg-[#EDC7B7] [data-state="active"] {
   background-color: #123C69 !important;
   color: #ffffff !important;
   font-weight: 700 !important;
@@ -91,20 +86,39 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. ĐỒNG BỘ BADGE MÃ GIÁ (BAR 0, BAR 1, PEAK...) & BẢNG
+   4. TẠO LỚP ĐÈ WILDCARD (TRIỆT HẠ TẤT CẢ CLASS MÀU CAM/VÀNG MỜ)
    ========================================================== */
 
-/* Ép tất cả Badge Mã giá (BAR 0, BAR 1...) đồng nhất 100% về font chữ và độ đậm */
-table td [class*="badge"],
-table td span[class*="rounded"],
-table td div[class*="rounded"],
-[class*="bg-amber-"], 
-[class*="bg-orange-"] {
-  font-weight: 600 !important;
-  color: #123C69 !important;
-  background-color: #EDC7B7 !important;
-  border: 1px solid #BAB2B5 !important;
+/* Ép tất cả class text-orange-*, text-amber-*, text-yellow-*, text-muted-* về màu Đen Xám đầm nét */
+[class*="text-orange-"],
+[class*="text-amber-"],
+[class*="text-yellow-"],
+[class*="text-muted-foreground"],
+.text-muted-foreground {
+  color: #1e293b !important;
 }
+
+/* Nhãn Checkbox, Thẻ Label, Dòng Chế độ xem & Tiêu đề phụ */
+label, label *,
+[class*="checkbox"] + label,
+.items-center label,
+.items-center span,
+div:has(> svg) span,
+div:has(> svg) {
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+/* Tiêu đề nhóm & Icon lịch dùng màu Xanh Navy */
+h1, h2, h3, h4, h5, h6, 
+.font-bold, .font-semibold,
+div:has(> svg) svg {
+  color: #123C69 !important;
+}
+
+/* ==========================================================
+   5. CHUẨN HÓA BẢNG DỮ LIỆU & BẢNG MA TRẬN OTA
+   ========================================================== */
 
 /* Header tiêu đề các cột */
 table th, table th * {
@@ -112,12 +126,13 @@ table th, table th * {
   font-weight: 700 !important;
 }
 
-/* Đồng bộ toàn bộ chữ trong bảng không bị chữ đậm chữ nhạt */
-table td, table td span, table td div {
-  font-weight: 500 !important;
+/* Tất cả các ô nội dung trong bảng hiển thị đen xám rõ nét */
+table td, table td *, table td span, table td div {
+  color: #1e293b !important;
+  font-weight: 400 !important;
 }
 
-/* CỘT GIÁ BÁN: Màu Xanh Navy (#123C69) */
+/* CỘT GIÁ BÁN (Cột 4, 6, 8, 10, 12...): Dùng màu Xanh Navy (#123C69) + Đậm */
 table td:nth-child(4), table td:nth-child(4) *,
 table td:nth-child(6), table td:nth-child(6) *,
 table td:nth-child(8), table td:nth-child(8) *,
@@ -127,29 +142,39 @@ table td:nth-child(12), table td:nth-child(12) * {
   font-weight: 600 !important;
 }
 
-/* CỘT GIÁ THU VỀ: Màu Xanh Đen Slate (#334155) */
+/* CỘT GIÁ THU VỀ (Cột 5, 7, 9, 11, 13...): Dùng màu Xanh Xám Slate (#334155) */
 table td:nth-child(5), table td:nth-child(5) *,
 table td:nth-child(7), table td:nth-child(7) *,
 table td:nth-child(9), table td:nth-child(9) *,
 table td:nth-child(11), table td:nth-child(11) *,
 table td:nth-child(13), table td:nth-child(13) * {
   color: #334155 !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
+}
+
+/* Đồng bộ 100% Badge Mã giá (BAR 0, BAR 1, PEAK...) */
+table td [class*="badge"],
+table td span[class*="rounded"],
+table td div[class*="rounded"],
+[class*="bg-amber-"], [class*="bg-orange-"] {
+  font-weight: 600 !important;
+  color: #123C69 !important;
+  background-color: #EDC7B7 !important;
+  border: 1px solid #BAB2B5 !important;
 }
 
 /* ==========================================================
-   5. LABELS, CHECKBOX & TIÊU ĐỀ PHỤ
+   6. HỘP CHỌN (DROPDOWN / POPOVER PORTAL)
    ========================================================== */
-h1, h2, h3, h4, h5, h6, 
-.font-bold, .font-semibold,
-[class*="text-orange-"], [class*="text-amber-"],
-*:has(> svg) > span, *:has(> svg) {
-  color: #123C69 !important;
-}
-
-label, label *, [class*="checkbox"] + label, .items-center label {
-  color: #0f172a !important;
-  font-weight: 500 !important;
+div[data-radix-popper-content-wrapper],
+div[role="dialog"],
+div[role="listbox"],
+div[class*="popover-content"],
+div[class*="DropdownMenuContent"] {
+  background-color: #ffffff !important;
+  border: 1px solid #BAB2B5 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+  z-index: 99999 !important;
 }
 
 div[data-radix-popper-content-wrapper] *,
@@ -160,7 +185,7 @@ div[class*="popover-content"] * {
 }
 
 /* ==========================================================
-   6. INPUT, SELECT & BUTTONS
+   7. INPUT, SELECT & BUTTONS
    ========================================================== */
 input, select, textarea, [role="combobox"] {
   border-color: #BAB2B5 !important;
@@ -185,7 +210,7 @@ button.bg-primary, button[type="submit"], [class*="bg-primary"] {
 }
 
 /* ==========================================================
-   7. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU
+   8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU
    ========================================================== */
 .rdp-day_outside, .day-outside, button[name="day"].opacity-50 {
   background-color: #e2e8f0 !important;
