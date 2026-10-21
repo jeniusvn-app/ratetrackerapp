@@ -859,42 +859,42 @@ export function PUReportPage() {
         <h1 className="text-lg font-semibold text-navy-800">MiniRMS</h1>
       </div>
 
-      {/* ============ TAB NAVIGATION ============ */}
-      <div className="flex gap-1 bg-navy-50 rounded-xl p-1 border border-navy-100">
+      {/* ============ TAB NAVIGATION (Level 1 — Main Tabs) ============ */}
+      <div className="flex flex-wrap gap-3">
         <button
           onClick={() => setActiveTab('pu')}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'pu'
-              ? 'bg-white text-navy-800 shadow-sm'
-              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >
-          <BarChart3 size={16} />
+          <BarChart3 size={18} className={activeTab === 'pu' ? 'text-white' : 'text-slate-400'} />
           Data & PU Report
         </button>
         {isFullAccess && (
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'analytics'
-              ? 'bg-white text-navy-800 shadow-sm'
-              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >
-          <LineChart size={16} />
+          <LineChart size={18} className={activeTab === 'analytics' ? 'text-white' : 'text-slate-400'} />
           Analytics
         </button>
         )}
         {isFullAccess && (
         <button
           onClick={() => setActiveTab('compset')}
-          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'compset'
-              ? 'bg-white text-navy-800 shadow-sm'
-              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >
-          <Swords size={16} />
+          <Swords size={18} className={activeTab === 'compset' ? 'text-white' : 'text-slate-400'} />
           Compset
         </button>
         )}

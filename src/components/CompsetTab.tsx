@@ -537,23 +537,29 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab navigation */}
-      <div className="flex gap-1 bg-navy-50 rounded-xl p-1 border border-navy-100 w-fit">
+      {/* Sub-tab navigation (Level 2) */}
+      <div className="flex flex-wrap gap-2.5 pt-3 border-t border-slate-200/70">
         <button
           onClick={() => setSubTab('setup')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            subTab === 'setup' ? 'bg-white text-navy-800 shadow-sm' : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
+            subTab === 'setup'
+              ? 'bg-indigo-50 text-indigo-700 font-semibold border-2 border-indigo-600 shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
           }`}
         >
-          <Building2 size={16} /> Compset Setup
+          <Building2 size={16} className={subTab === 'setup' ? 'text-indigo-600' : 'text-slate-400'} />
+          Compset Setup
         </button>
         <button
           onClick={() => setSubTab('tracker')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            subTab === 'tracker' ? 'bg-white text-navy-800 shadow-sm' : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
+            subTab === 'tracker'
+              ? 'bg-indigo-50 text-indigo-700 font-semibold border-2 border-indigo-600 shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
           }`}
         >
-          <Swords size={16} /> Rate Tracker & Action Insights
+          <Swords size={16} className={subTab === 'tracker' ? 'text-indigo-600' : 'text-slate-400'} />
+          Rate Tracker & Action Insights
         </button>
       </div>
 
