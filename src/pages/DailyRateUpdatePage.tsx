@@ -1,26 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Trash2, Plus, CalendarRange } from 'lucide-react';
+import { Trash2, Plus, CalendarRange, CheckSquare, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
-import type { DailyRate, DateRange, Hotel, PriceMatrix } from '@/types';
+import type { DailyRate, DateRange, Hotel, PriceMatrix, RoomType } from '@/types';
 import { Button, Select, Card, Field, Badge, EmptyState, Modal, Input } from '@/components/ui';
-import { formatVND, normCode, toDMY, toISODate, dateRangeISO, excelSerialToDate } from '@/lib/format';
+import { formatVND, normCode, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import { notifyRatesUpdated, expandDateRanges, totalDaysInRanges } from '@/lib/rateSync';
+
+interface RoomPriceOverride {
+  roomTypeId: string;
+  selling: string;
+  net: string;
+  cms: string;
+  b2b: string;
+}
 
 export function DailyRateUpdatePage() {
   const { hotels } = useAuth();
   const [hotelId, setHotelId] = useState('');
-  const [roomTypeId, setRoomTypeId] = useState('');
+  const [applyAllRoomTypes, setApplyAllRoomTypes] = useState(false);
+  const [selectedRoomTypeIds, setSelectedRoomTypeIds] = useState<string[]>([]);
   const [rateCode, setRateCode] = useState('');
   const [dateRanges, setDateRanges] = useState<DateRange[]>([
     { start: toISODate(new Date()), end: toISODate(new Date()) },
   ]);
-  const [sell, setSell] = useState('');
-  const [net, setNet] = useState('');
-  const [cms, setCms] = useState('');
-  const [b2b, setB2b] = useState('');
+  const [priceOverrides, setPriceOverrides] = useState<Map<string, RoomPriceOverride>>(new Map());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [rows, setRows] = useState<DailyRate[]>([]);
@@ -37,17 +43,13 @@ export function DailyRateUpdatePage() {
     if (hotels.length && !hotelId) setHotelId(hotels[0].id);
   }, [hotels, hotelId]);
 
-  // Reset room type + rate code when hotel changes
   useEffect(() => {
-    setRoomTypeId('');
+    setApplyAllRoomTypes(false);
+    setSelectedRoomTypeIds([]);
     setRateCode('');
-    setSell('');
-    setNet('');
-    setCms('');
-    setB2b('');
+    setPriceOverrides(new Map());
   }, [hotelId]);
 
-  // Load price_matrix for the selected hotel
   useEffect(() => {
     (async () => {
       if (!hotelId) {
@@ -59,52 +61,92 @@ export function DailyRateUpdatePage() {
     })();
   }, [hotelId]);
 
+  // All rate codes available for the selected hotel (across all room types)
   const rateCodes = useMemo(() => {
     const set = new Set<string>();
-    matrix
-      .filter((m) => m.room_type_id === roomTypeId)
-      .forEach((m) => set.add(normCode(m.rate_code)));
-    return Array.from(set);
-  }, [matrix, roomTypeId]);
+    matrix.forEach((m) => set.add(normCode(m.rate_code)));
+    return Array.from(set).sort();
+  }, [matrix]);
 
   const isDynamic = rateCode === 'Dynamic';
 
+  // Auto-select first rate code when hotel changes or codes load
   useEffect(() => {
-    if (rateCodes.length > 0) {
+    if (rateCodes.length > 0 && !rateCode) {
       setRateCode(rateCodes[0]);
+    }
+  }, [rateCodes, rateCode]);
+
+  // When "Select All" is toggled, update the selected room type ids
+  useEffect(() => {
+    if (applyAllRoomTypes) {
+      setSelectedRoomTypeIds(roomTypes.map((rt) => rt.id));
     } else {
-      setRateCode('');
-      setSell('');
-      setNet('');
-      setCms('');
-      setB2b('');
+      // keep existing manual selections when unchecking "all"
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomTypeId, rateCodes.join('|')]);
+  }, [applyAllRoomTypes]);
 
+  // Target room types for preview / save
+  const targetRoomTypes: RoomType[] = useMemo(() => {
+    if (applyAllRoomTypes) return roomTypes;
+    return roomTypes.filter((rt) => selectedRoomTypeIds.includes(rt.id));
+  }, [applyAllRoomTypes, roomTypes, selectedRoomTypeIds]);
+
+  // Matrix lookup for the selected rate code, keyed by room_type_id
+  const matrixByRoomType = useMemo(() => {
+    const m = new Map<string, PriceMatrix>();
+    if (isDynamic) return m;
+    for (const p of matrix) {
+      if (normCode(p.rate_code) === normCode(rateCode)) {
+        m.set(p.room_type_id, p);
+      }
+    }
+    return m;
+  }, [matrix, rateCode, isDynamic]);
+
+  // Build / refresh price overrides when rate code or target room types change.
+  // For matrix-based codes, auto-fill from price_matrix. For Dynamic, start blank.
+  const previewRows = useMemo<RoomPriceOverride[]>(() => {
+    return targetRoomTypes.map((rt) => {
+      const existing = priceOverrides.get(rt.id);
+      if (existing) {
+        return existing;
+      }
+      const m = matrixByRoomType.get(rt.id);
+      if (m) {
+        return {
+          roomTypeId: rt.id,
+          selling: String(Number(m.selling_price)),
+          net: String(Number(m.net_price)),
+          cms: String(Number(m.cms_price)),
+          b2b: m.b2b_price != null ? String(Number(m.b2b_price)) : '',
+        };
+      }
+      // Dynamic or no matrix match: blank for manual entry
+      return { roomTypeId: rt.id, selling: '', net: '', cms: '', b2b: '' };
+    });
+  }, [targetRoomTypes, matrixByRoomType, priceOverrides, isDynamic]);
+
+  const updateOverride = (roomTypeId: string, field: keyof RoomPriceOverride, value: string) => {
+    setPriceOverrides((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(roomTypeId) || {
+        roomTypeId,
+        selling: '',
+        net: '',
+        cms: '',
+        b2b: '',
+      };
+      next.set(roomTypeId, { ...cur, [field]: value });
+      return next;
+    });
+  };
+
+  // Reset overrides when rate code changes
   useEffect(() => {
-    if (isDynamic) {
-      setSell('');
-      setNet('');
-      setCms('');
-      setB2b('');
-      return;
-    }
-    const m = matrix.find(
-      (x) => x.room_type_id === roomTypeId && normCode(x.rate_code) === normCode(rateCode),
-    );
-    if (m) {
-      setSell(String(Number(m.selling_price)));
-      setNet(String(Number(m.net_price)));
-      setCms(String(Number(m.cms_price)));
-      setB2b(m.b2b_price != null ? String(Number(m.b2b_price)) : '');
-    } else {
-      setSell('');
-      setNet('');
-      setCms('');
-      setB2b('');
-    }
-  }, [rateCode, roomTypeId, matrix, isDynamic]);
+    setPriceOverrides(new Map());
+  }, [rateCode]);
 
   const loadRates = useCallback(async () => {
     if (!hotelId) {
@@ -126,9 +168,6 @@ export function DailyRateUpdatePage() {
     loadRates();
   }, [loadRates]);
 
-  const hotelName = hotels.find((h) => h.id === hotelId)?.name || '';
-  const rtName = roomTypes.find((rt) => rt.id === roomTypeId)?.name || '';
-
   const totalDays = useMemo(() => totalDaysInRanges(dateRanges), [dateRanges]);
 
   // ---------- Date range helpers ----------
@@ -145,15 +184,23 @@ export function DailyRateUpdatePage() {
     setDateRanges((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // ---------- Save (batch UPSERT with native upsert) ----------
+  // ---------- Room type selection helpers ----------
+  const toggleRoomType = (rtId: string) => {
+    setSelectedRoomTypeIds((prev) =>
+      prev.includes(rtId) ? prev.filter((x) => x !== rtId) : [...prev, rtId],
+    );
+    if (applyAllRoomTypes) setApplyAllRoomTypes(false);
+  };
+
+  // ---------- Save (batch UPSERT across all target room types × dates) ----------
   const save = async () => {
     setMsg(null);
-    if (!hotelId || !roomTypeId || !rateCode) {
-      setMsg({ kind: 'err', text: 'Vui lòng chọn đủ khách sạn, loại phòng và mã giá.' });
+    if (!hotelId || !rateCode) {
+      setMsg({ kind: 'err', text: 'Vui lòng chọn khách sạn và mã giá.' });
       return;
     }
-    if (sell === '' || net === '' || cms === '') {
-      setMsg({ kind: 'err', text: 'Vui lòng nhập đủ 3 mức giá (Giá bán, Giá thu về, Giá CMS).' });
+    if (targetRoomTypes.length === 0) {
+      setMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một loại phòng.' });
       return;
     }
     const dates = expandDateRanges(dateRanges);
@@ -161,26 +208,53 @@ export function DailyRateUpdatePage() {
       setMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một giai đoạn ngày hợp lệ.' });
       return;
     }
+    // Validate every target room type has required prices
+    for (const p of previewRows) {
+      if (p.selling === '' || p.net === '' || p.cms === '') {
+        const rt = roomTypes.find((x) => x.id === p.roomTypeId);
+        setMsg({
+          kind: 'err',
+          text: `Vui lòng nhập đủ 3 mức giá cho ${rt?.name || 'loại phòng'}.`,
+        });
+        return;
+      }
+    }
     setSaving(true);
-    const insertRows = dates.map((d) => ({
-      hotel_id: hotelId,
-      room_type_id: roomTypeId,
-      date: d,
-      rate_code: rateCode,
-      selling_price: Number(sell),
-      net_price: Number(net),
-      cms_price: Number(cms),
-      b2b_price: b2b.trim() === '' ? null : Number(b2b) || null,
-    }));
+    // Build consolidated batch: room types × dates
+    const insertRows: {
+      hotel_id: string;
+      room_type_id: string;
+      date: string;
+      rate_code: string;
+      selling_price: number;
+      net_price: number;
+      cms_price: number;
+      b2b_price: number | null;
+    }[] = [];
+    for (const p of previewRows) {
+      for (const d of dates) {
+        insertRows.push({
+          hotel_id: hotelId,
+          room_type_id: p.roomTypeId,
+          date: d,
+          rate_code: rateCode,
+          selling_price: Number(p.selling),
+          net_price: Number(p.net),
+          cms_price: Number(p.cms),
+          b2b_price: p.b2b.trim() === '' ? null : Number(p.b2b) || null,
+        });
+      }
+    }
     const { error } = await supabase
       .from('daily_rates')
       .upsert(insertRows, { onConflict: 'hotel_id,room_type_id,date,rate_code' });
     if (error) {
       setMsg({ kind: 'err', text: `Lỗi lưu giá: ${error.message}` });
     } else {
+      const rtCount = targetRoomTypes.length;
       setMsg({
         kind: 'ok',
-        text: `Đã lưu ${dates.length} ngày cho ${rtName} — ${rateCode}. Trang tra cứu sẽ cập nhật ngay.`,
+        text: `Đã lưu ${dates.length} ngày × ${rtCount} loại phòng (${insertRows.length} bản ghi) — ${rateCode}. Trang tra cứu sẽ cập nhật ngay.`,
       });
       notifyRatesUpdated();
       await loadRates();
@@ -292,7 +366,7 @@ export function DailyRateUpdatePage() {
           <h2 className="text-base font-semibold text-navy-800">Bộ công cụ phân bổ giá tự động</h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
           <Field label="Khách sạn">
             <Select value={hotelId} onChange={setHotelId}>
               {hotels.map((h: Hotel) => (
@@ -302,17 +376,7 @@ export function DailyRateUpdatePage() {
               ))}
             </Select>
           </Field>
-          <Field label="Loại phòng" hint="Sắp xếp theo display_order">
-            <Select value={roomTypeId} onChange={setRoomTypeId}>
-              <option value="">— Chọn loại phòng —</option>
-              {roomTypes.map((rt) => (
-                <option key={rt.id} value={rt.id}>
-                  {rt.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : undefined}>
+          <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : 'BAR Standard, Non-Refundable, Corporate, Early Bird…'}>
             <Select value={rateCode} onChange={setRateCode}>
               {rateCodes.map((c) => (
                 <option key={c} value={c}>
@@ -323,6 +387,50 @@ export function DailyRateUpdatePage() {
               <option value="Dynamic">Dynamic</option>
             </Select>
           </Field>
+        </div>
+
+        {/* Room type selector with Select All */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-navy-700">Loại phòng áp dụng</label>
+            <button
+              onClick={() => setApplyAllRoomTypes((v) => !v)}
+              className={`inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                applyAllRoomTypes
+                  ? 'bg-gold-50 border-gold-200 text-gold-700'
+                  : 'bg-white border-navy-200 text-navy-600 hover:bg-navy-50'
+              }`}
+            >
+              {applyAllRoomTypes ? <CheckSquare size={16} /> : <Square size={16} />}
+              Tất cả loại phòng
+            </button>
+          </div>
+          {!applyAllRoomTypes && (
+            <div className="space-y-1.5 max-h-44 overflow-y-auto thin-scroll rounded-lg border border-navy-200 p-2 bg-white">
+              {roomTypes.map((rt) => (
+                <label
+                  key={rt.id}
+                  className="flex items-center gap-2 text-sm text-navy-700 cursor-pointer hover:bg-navy-50 rounded px-1.5 py-1.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedRoomTypeIds.includes(rt.id)}
+                    onChange={() => toggleRoomType(rt.id)}
+                    className="accent-gold-500"
+                  />
+                  {rt.name}
+                </label>
+              ))}
+              {roomTypes.length === 0 && (
+                <div className="text-xs text-navy-400">Chưa có loại phòng cho khách sạn này.</div>
+              )}
+            </div>
+          )}
+          {applyAllRoomTypes && (
+            <div className="rounded-lg bg-gold-50 border border-gold-100 px-3 py-2 text-sm text-gold-700">
+              Áp dụng cho tất cả {roomTypes.length} loại phòng của khách sạn.
+            </div>
+          )}
         </div>
 
         {/* Multi-date range selector */}
@@ -383,23 +491,91 @@ export function DailyRateUpdatePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-          <Field label="Giá bán (VND)">
-            <Input value={sell} onChange={setSell} type="number" placeholder="990000" />
-          </Field>
-          <Field label="Giá thu về (VND)">
-            <Input value={net} onChange={setNet} type="number" placeholder="841500" />
-          </Field>
-          <Field label="Giá CMS (VND)" hint={isDynamic ? 'Nhập tay' : 'Chỉ Admin xem được'}>
-            <Input value={cms} onChange={setCms} type="number" placeholder="760000" />
-          </Field>
-          <Field label="Giá B2B (VND)" hint="Tuỳ chọn — để trống nếu không có">
-            <Input value={b2b} onChange={setB2b} type="number" placeholder="750000" />
-          </Field>
-        </div>
         {isDynamic && (
-          <div className="mt-2 text-xs text-gold-700 bg-gold-50 border border-gold-100 rounded-lg px-3 py-2">
-            Đang ở chế độ Dynamic — bạn tự nhập các mức giá, không lấy từ ma trận giá. Nhấn "Lưu Lịch Giá" để lưu thẳng vào lịch giá với mã <span className="font-semibold">Dynamic</span>.
+          <div className="mt-3 text-xs text-gold-700 bg-gold-50 border border-gold-100 rounded-lg px-3 py-2">
+            Đang ở chế độ Dynamic — bạn tự nhập các mức giá cho từng loại phòng, không lấy từ ma trận giá. Nhấn "Lưu Lịch Giá" để lưu thẳng vào lịch giá với mã <span className="font-semibold">Dynamic</span>.
+          </div>
+        )}
+
+        {/* Dynamic Pricing Preview — per room type with editable overrides */}
+        {targetRoomTypes.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium text-navy-700">
+                Xem trước & chỉnh giá theo loại phòng
+              </div>
+              <span className="text-xs text-navy-400">
+                {targetRoomTypes.length} loại phòng × {totalDays} ngày = {targetRoomTypes.length * totalDays} bản ghi
+              </span>
+            </div>
+            <div className="overflow-x-auto thin-scroll rounded-lg border border-navy-100">
+              <table className="w-full text-sm">
+                <thead className="bg-navy-50 text-navy-700">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Loại phòng</th>
+                    <th className="text-right px-3 py-2 font-semibold">Giá bán</th>
+                    <th className="text-right px-3 py-2 font-semibold">Giá thu về</th>
+                    <th className="text-right px-3 py-2 font-semibold">Giá CMS</th>
+                    <th className="text-right px-3 py-2 font-semibold">Giá B2B</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((p) => {
+                    const rt = roomTypes.find((x) => x.id === p.roomTypeId);
+                    const hasMatrix = !isDynamic && matrixByRoomType.has(p.roomTypeId);
+                    return (
+                      <tr key={p.roomTypeId} className="border-t border-navy-50">
+                        <td className="px-3 py-2 text-navy-700 font-medium whitespace-nowrap">
+                          {rt?.name || '—'}
+                          {hasMatrix && (
+                            <span className="ml-2 text-[10px] text-navy-400 font-normal">(từ ma trận)</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={p.selling}
+                            onChange={(e) => updateOverride(p.roomTypeId, 'selling', e.target.value)}
+                            placeholder="990000"
+                            className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-right mono-num text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={p.net}
+                            onChange={(e) => updateOverride(p.roomTypeId, 'net', e.target.value)}
+                            placeholder="841500"
+                            className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-right mono-num text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={p.cms}
+                            onChange={(e) => updateOverride(p.roomTypeId, 'cms', e.target.value)}
+                            placeholder="760000"
+                            className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-right mono-num text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            value={p.b2b}
+                            onChange={(e) => updateOverride(p.roomTypeId, 'b2b', e.target.value)}
+                            placeholder="—"
+                            className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-right mono-num text-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-2 text-xs text-navy-400">
+              Giá được tự động điền từ ma trận giá (price_matrix) khi chọn mã giá. Bạn có thể chỉnh từng ô nếu cần ghi đè.
+            </div>
           </div>
         )}
 
