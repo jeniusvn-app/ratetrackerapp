@@ -218,40 +218,44 @@ svg, svg * {
   color: inherit;
 }
 /* ==========================================================
-   MINIRMS - RADIX POPPER DROPDOWN OVERRIDE (0 TOKEN AI)
+   MINIRMS - ULTIMATE FORCE OVERRIDE DROPDOWN MENU (0 TOKEN)
    ========================================================== */
 
-/* Ép background và viền cho khung Menu Popup */
-div[data-radix-popper-content-wrapper],
-div[role="menu"],
-div[class*="DropdownMenuContent"],
-div[class*="popover-content"] {
-  background-color: #ffffff !important;
-  border: 1px solid #BAB2B5 !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
-  z-index: 999999 !important;
-}
-
-/* Ép TẤT CẢ các thẻ con (span, p, svg, button...) bên trong Dropdown về màu Xanh Navy */
-div[data-radix-popper-content-wrapper] *,
-div[role="menu"] *,
-div[role="menuitem"] *,
-div[class*="DropdownMenuItem"] *,
-[data-radix-collection-item] * {
+/* 1. Ép màu chữ và icon cho tất cả các phần tử có chữ "File báo cáo" */
+[role="menuitem"],
+[role="option"],
+div[data-radix-collection-item],
+.DropdownMenuItem,
+[class*="DropdownMenuItem"] {
   color: #123C69 !important;
   fill: #123C69 !important;
   stroke: #123C69 !important;
   font-weight: 600 !important;
   opacity: 1 !important;
+  filter: none !important;
 }
 
-/* Hiệu ứng khi rê chuột vào Menu Item (Hover) */
-div[role="menuitem"]:hover,
-div[role="menuitem"]:hover *,
-div[class*="DropdownMenuItem"]:hover,
-div[class*="DropdownMenuItem"]:hover * {
+/* 2. Đè triệt hạ vào toàn bộ thẻ con (span, svg, p, div) bên trong menu */
+[role="menuitem"] *,
+[role="option"] *,
+div[data-radix-collection-item] *,
+[class*="DropdownMenuItem"] * {
+  color: #123C69 !important;
+  fill: #123C69 !important;
+  stroke: #123C69 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #123C69 !important; /* Đè màu chữ Safari/Webkit inline */
+}
+
+/* 3. Hiệu ứng rê chuột (Hover) đổi sang màu nhấn Magenta */
+[role="menuitem"]:hover,
+[role="menuitem"]:hover *,
+[class*="DropdownMenuItem"]:hover,
+[class*="DropdownMenuItem"]:hover * {
   background-color: #EEE2DC !important;
   color: #AC3B61 !important;
   fill: #AC3B61 !important;
   stroke: #AC3B61 !important;
+  -webkit-text-fill-color: #AC3B61 !important;
 }
