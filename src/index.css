@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - ULTIMATE FORCE CONTRAST FIX
+   MINIRMS / RATETRACKER AI - MASTER UI & FORM CONTRAST FIX
    Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
-/* 1. PALETTE MÀU CHÍNH & BIẾN MÀU HỘP CHỌN */
+/* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
 :root {
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
@@ -90,9 +90,42 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. ĐÈ TRIỆT ĐỂ MỌI CLASS TAILWIND HARDCODE TRONG POPOVER
+   4. CAN THIỆP TẬN GỐC TẤT CẢ LABELS, CHECKBOX & KHU VỰC LOẠI PHÒNG
    ========================================================== */
-/* Bắt tất cả khung Popover/Dropdown Portal */
+
+/* Ép tiêu đề nhóm (Loại phòng áp dụng, Giai đoạn áp dụng...) về màu Xanh Navy */
+h1, h2, h3, h4, h5, h6, 
+.font-bold, .font-semibold, 
+[class*="text-orange-300"], [class*="text-orange-200"],
+[class*="text-amber-300"], [class*="text-amber-200"] {
+  color: #123C69 !important;
+  font-weight: 700 !important;
+}
+
+/* Ép toàn bộ nhãn Checkbox (Superior King, Superior Twin, Deluxe King...) về màu đen đậm sắc nét */
+label, 
+label span,
+[class*="checkbox"] + label,
+[class*="space-y"] label,
+[class*="grid"] label,
+.items-center label,
+.items-center span {
+  color: #0f172a !important; /* Đen đậm 100% rõ ràng */
+  font-weight: 500 !important;
+}
+
+/* Nút "Tất cả loại phòng" */
+button.border-orange-200,
+button.border-amber-200,
+button[class*="border"] {
+  border-color: #123C69 !important;
+  color: #123C69 !important;
+  font-weight: 600 !important;
+}
+
+/* ==========================================================
+   5. POPOVER & DROPDOWN MENU PORTAL (KASEN, FURIN, NIHOMA...)
+   ========================================================== */
 div[data-radix-popper-content-wrapper],
 div[role="dialog"],
 div[role="listbox"],
@@ -104,26 +137,17 @@ div[class*="DropdownMenuContent"] {
   z-index: 99999 !important;
 }
 
-/* Bắt từng thẻ bất kỳ bên trong Popover và đè sạch các class text-orange, text-amber... */
 div[data-radix-popper-content-wrapper] *,
 div[role="dialog"] *,
 div[class*="popover-content"] *,
-div[class*="popover-content"] [class*="text-"],
 div[class*="popover-content"] label,
 div[class*="popover-content"] span {
-  color: #0f172a !important; /* Đen đậm rõ nét 100% */
+  color: #0f172a !important;
   font-weight: 500 !important;
 }
 
-/* Hover item trong Popover */
-div[class*="popover-content"] label:hover,
-div[class*="popover-content"] div:hover {
-  background-color: #EEE2DC !important;
-  color: #123C69 !important;
-}
-
 /* ==========================================================
-   5. BẢNG DỮ LIỆU & TIÊU ĐỀ
+   6. BẢNG DỮ LIỆU PHÍA DƯỚI (TABLE)
    ========================================================== */
 table th {
   color: #123C69 !important;
@@ -138,46 +162,21 @@ table td div {
 }
 
 table td.font-bold, 
-table td [class*="font-bold"] {
+table td [class*="font-bold"],
+table td:nth-child(4) {
   color: #123C69 !important;
   font-weight: 700 !important;
-}
-
-form label, .card label {
-  color: #123C69 !important;
-  font-weight: 600 !important;
-}
-
-h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
-  color: #123C69 !important;
-  font-weight: 700 !important;
-}
-
-/* ==========================================================
-   6. MÀU GIÁ TRÊN LỊCH & BADGE TRẠNG THÁI
-   ========================================================== */
-.rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
-.rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
-.rdp [class*="text-purple-"], .rdp [class*="text-violet-"] { color: #7c3aed !important; }
-.rdp [class*="text-rose-"], .rdp [class*="text-red-"] { color: #dc2626 !important; }
-
-svg, svg * {
-  color: inherit;
-}
-
-[class*="bg-amber-"], [class*="bg-orange-"] {
-  background-color: #fef3c7 !important;
-  color: #92400e !important;
 }
 
 /* ==========================================================
    7. INPUT, SELECT & BUTTONS
    ========================================================== */
-input, select, textarea {
+input, select, textarea, [role="combobox"] {
   border-color: #BAB2B5 !important;
   border-width: 1px !important;
   background-color: #ffffff !important;
   color: #0f172a !important;
+  font-weight: 500 !important;
 }
 
 input:focus, select:focus {
@@ -202,7 +201,7 @@ button[type="submit"],
 }
 
 /* ==========================================================
-   8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU
+   8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU & MÀU GIÁ
    ========================================================== */
 .rdp-day_outside,
 .day-outside,
@@ -226,4 +225,13 @@ button[aria-selected="true"],
 .rdp-day_selected {
   border: 2px solid #AC3B61 !important;
   background-color: #ffffff !important;
+}
+
+.rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
+.rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
+.rdp [class*="text-purple-"], .rdp [class*="text-violet-"] { color: #7c3aed !important; }
+.rdp [class*="text-rose-"], .rdp [class*="text-red-"] { color: #dc2626 !important; }
+
+svg, svg * {
+  color: inherit;
 }
