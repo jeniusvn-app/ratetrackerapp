@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - ONE-TIME ULTIMATE GLOBAL FIX
-   Tốn đúng 0 Token AI - Dán đè toàn bộ src/index.css
+   MINIRMS / RATETRACKER AI - ONE-TIME ULTIMATE UNIFORM FIX
+   Sửa triệt để lỗi nhảy màu/in đậm bảng (0 Token AI)
    ========================================================== */
 
-/* 1. KHAI BÁO MÀU TOÀN CỤC & SỬA BIẾN MÀU CỦA SHADCN/TAILWIND */
+/* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
 :root {
   color-scheme: light !important;
   --color-peach: #EDC7B7;
@@ -52,10 +52,9 @@ body {
 
   --popover-foreground: #0f172a !important;
   --muted-foreground: #334155 !important;
-  --text-muted: #334155 !important;
 }
 
-/* 2. NỀN ỨNG DỤNG & HEADER BAR */
+/* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
 body {
   background-color: #EEE2DC !important;
   color: #0f172a !important;
@@ -66,7 +65,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (ACTIVE STATE) */
+/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
 header nav a, header nav button, .bg-[#EDC7B7] button {
   background-color: transparent !important;
   color: #123C69 !important;
@@ -86,70 +85,31 @@ header nav .bg-white, .bg-[#EDC7B7] .bg-white, .bg-[#EDC7B7] [data-state="active
 }
 
 /* ==========================================================
-   4. TẠO LỚP ĐÈ WILDCARD (TRIỆT HẠ TẤT CẢ CLASS MÀU CAM/VÀNG MỜ)
+   4. CHUẨN HÓA BẢNG DỮ LIỆU (ĐỒNG BỘ 100% KHÔNG NÓI NHIỀU)
    ========================================================== */
 
-/* Ép tất cả class text-orange-*, text-amber-*, text-yellow-*, text-muted-* về màu Đen Xám đầm nét */
-[class*="text-orange-"],
-[class*="text-amber-"],
-[class*="text-yellow-"],
-[class*="text-muted-foreground"],
-.text-muted-foreground {
-  color: #1e293b !important;
-}
-
-/* Nhãn Checkbox, Thẻ Label, Dòng Chế độ xem & Tiêu đề phụ */
-label, label *,
-[class*="checkbox"] + label,
-.items-center label,
-.items-center span,
-div:has(> svg) span,
-div:has(> svg) {
-  color: #0f172a !important;
-  font-weight: 500 !important;
-}
-
-/* Tiêu đề nhóm & Icon lịch dùng màu Xanh Navy */
-h1, h2, h3, h4, h5, h6, 
-.font-bold, .font-semibold,
-div:has(> svg) svg {
-  color: #123C69 !important;
-}
-
-/* ==========================================================
-   5. CHUẨN HÓA BẢNG DỮ LIỆU & BẢNG MA TRẬN OTA
-   ========================================================== */
-
-/* Header tiêu đề các cột */
+/* Tiêu đề đầu cột (Agoda, Booking, Giá bán, Giá thu về...) */
 table th, table th * {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* Tất cả các ô nội dung trong bảng hiển thị đen xám rõ nét */
-table td, table td *, table td span, table td div {
+/* SAN PHẲNG TOÀN BỘ CHỮ NỘI DUNG TRONG BẢNG: Ép đúng 1 font-weight: 500, không bị ô đậm ô mảnh */
+table td, 
+table td *, 
+table td span, 
+table td div,
+table td b,
+table td strong {
+  font-weight: 500 !important;
   color: #1e293b !important;
-  font-weight: 400 !important;
 }
 
-/* CỘT GIÁ BÁN (Cột 4, 6, 8, 10, 12...): Dùng màu Xanh Navy (#123C69) + Đậm */
-table td:nth-child(4), table td:nth-child(4) *,
-table td:nth-child(6), table td:nth-child(6) *,
-table td:nth-child(8), table td:nth-child(8) *,
-table td:nth-child(10), table td:nth-child(10) *,
-table td:nth-child(12), table td:nth-child(12) * {
-  color: #123C69 !important;
+/* Tên Loại phòng (Kasen, Furin...) & Gói giá (Room Only) */
+table td:first-child, table td:first-child *,
+table td:nth-child(2), table td:nth-child(2) * {
+  color: #0f172a !important;
   font-weight: 600 !important;
-}
-
-/* CỘT GIÁ THU VỀ (Cột 5, 7, 9, 11, 13...): Dùng màu Xanh Xám Slate (#334155) */
-table td:nth-child(5), table td:nth-child(5) *,
-table td:nth-child(7), table td:nth-child(7) *,
-table td:nth-child(9), table td:nth-child(9) *,
-table td:nth-child(11), table td:nth-child(11) *,
-table td:nth-child(13), table td:nth-child(13) * {
-  color: #334155 !important;
-  font-weight: 400 !important;
 }
 
 /* Đồng bộ 100% Badge Mã giá (BAR 0, BAR 1, PEAK...) */
@@ -164,7 +124,35 @@ table td div[class*="rounded"],
 }
 
 /* ==========================================================
-   6. HỘP CHỌN (DROPDOWN / POPOVER PORTAL)
+   5. KHÓA TẤT CẢ CLASS MÀU CÓ THỂ GÂY MỜ / NHÒE
+   ========================================================== */
+[class*="text-orange-"],
+[class*="text-amber-"],
+[class*="text-yellow-"],
+[class*="text-muted-foreground"],
+.text-muted-foreground {
+  color: #1e293b !important;
+}
+
+/* Label, Checkbox & Tiêu đề nhóm */
+label, label *,
+[class*="checkbox"] + label,
+.items-center label,
+.items-center span,
+div:has(> svg) span,
+div:has(> svg) {
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+h1, h2, h3, h4, h5, h6, 
+.font-bold, .font-semibold,
+div:has(> svg) svg {
+  color: #123C69 !important;
+}
+
+/* ==========================================================
+   6. HỘP CHỌN DROPDOWN & POPOVER PORTAL
    ========================================================== */
 div[data-radix-popper-content-wrapper],
 div[role="dialog"],
