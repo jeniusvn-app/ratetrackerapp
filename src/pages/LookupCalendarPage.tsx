@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
@@ -6,6 +6,7 @@ import type { DailyRate, Hotel, RoomType } from '@/types';
 import { formatVND, toISODate, toDMY, dateRangeISO } from '@/lib/format';
 import { RATES_UPDATED_EVENT } from '@/lib/rateSync';
 import { Button, Select, Card, Field, EmptyState, Badge } from '@/components/ui';
+import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { ExportModal } from '@/components/ExportModal';
 
 type View = 'calendar' | 'table';
@@ -33,6 +34,42 @@ export function LookupCalendarPage() {
   const [exportOpen, setExportOpen] = useState(false);
 
   const { roomTypes } = useRoomTypes(hotelId || null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  const MONTHS_VI = [
+    'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
+  ];
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(() => {
+    const years: number[] = [];
+    for (let y = currentYear - 2; y <= currentYear + 5; y++) years.push(y);
+    return years;
+  }, [currentYear]);
+  const [pickerMonth, setPickerMonth] = useState(month.getMonth());
+  const [pickerYear, setPickerYear] = useState(month.getFullYear());
+
+  useEffect(() => {
+    setPickerMonth(month.getMonth());
+    setPickerYear(month.getFullYear());
+  }, [month]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [pickerOpen]);
+
+  const jumpToMonthYear = () => {
+    setMonth(new Date(pickerYear, pickerMonth, 1));
+    setPickerOpen(false);
+  };
 
   useEffect(() => {
     if (hotels.length && !hotelId) setHotelId(hotels[0].id);
@@ -289,22 +326,83 @@ export function LookupCalendarPage() {
 
       {view === 'calendar' ? (
         <Card className="p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <Button
               variant="subtle"
               size="sm"
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
             >
-              Tháng trước
+              <ChevronLeft size={16} /> Tháng trước
             </Button>
-            <h2 className="text-base font-semibold text-navy-800 capitalize">{fmtMonth}</h2>
+
+            <div className="relative" ref={pickerRef}>
+              <button
+                onClick={() => setPickerOpen((v) => !v)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  pickerOpen
+                    ? 'bg-navy-700 text-white shadow-sm'
+                    : 'bg-navy-50 text-navy-800 hover:bg-navy-100 border border-navy-100'
+                }`}
+              >
+                <CalendarDays size={16} />
+                <span className="capitalize">{fmtMonth}</span>
+              </button>
+              {pickerOpen && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-30 bg-white rounded-xl border border-navy-200 shadow-pop p-4 min-w-[280px] fade-in">
+                  <div className="text-xs font-semibold text-navy-500 uppercase tracking-wide mb-3">Chọn nhanh tháng / năm</div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <Field label="Tháng">
+                      <Select value={String(pickerMonth)} onChange={(v) => setPickerMonth(Number(v))}>
+                        {MONTHS_VI.map((m, i) => (
+                          <option key={i} value={String(i)}>{m}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Năm">
+                      <Select value={String(pickerYear)} onChange={(v) => setPickerYear(Number(v))}>
+                        {yearOptions.map((y) => (
+                          <option key={y} value={String(y)}>{y}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="subtle" size="sm" onClick={() => setPickerOpen(false)}>Huỷ</Button>
+                    <Button variant="gold" size="sm" onClick={jumpToMonthYear}>Chuyển tới</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Button
               variant="subtle"
               size="sm"
               onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
             >
-              Tháng sau
+              Tháng sau <ChevronRight size={16} />
             </Button>
+          </div>
+
+          {/* Price line legend */}
+          <div className="flex flex-wrap items-center gap-2 mb-3 px-3 py-2.5 rounded-lg bg-navy-50/60 border border-navy-100">
+            <span className="text-xs font-semibold text-navy-600 uppercase tracking-wide mr-1">Chú thích:</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-navy-700">
+              <span className="inline-block w-3 h-3 rounded-sm bg-navy-700" />
+              <span className="font-semibold">Ref. Selling</span>
+              <span className="text-navy-400">— Giá bán tham chiếu</span>
+            </span>
+            <span className="text-navy-200">|</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-navy-500">
+              <span className="inline-block w-3 h-3 rounded-sm bg-navy-400" />
+              <span className="font-semibold">Net Rate</span>
+              <span className="text-navy-400">— Giá Net</span>
+            </span>
+            <span className="text-navy-200">|</span>
+            <span className="inline-flex items-center gap-1.5 text-xs">
+              <span className="inline-block w-3 h-3 rounded-sm bg-gold-500" />
+              <span className="font-semibold text-gold-600">B2B Rate</span>
+              <span className="text-navy-400">— Giá B2B / Đại lý</span>
+            </span>
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
@@ -383,11 +481,6 @@ export function LookupCalendarPage() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-sm bg-amber-50 border border-amber-100" /> Thứ 7
-            </span>
-            <span>
-              <span className="font-semibold">Dòng 1:</span> Giá bán ·{' '}
-              <span className="font-semibold">Dòng 2:</span> Giá net ·{' '}
-              <span className="font-semibold text-gold-600">Dòng 3:</span> Giá B2B
             </span>
             {roomTypeId === 'all' && (
               <span>Hiển thị giá bán thấp nhất mỗi ngày (tất cả loại phòng) — không tính giá B2B</span>
