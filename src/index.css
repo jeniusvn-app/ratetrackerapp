@@ -37,137 +37,31 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   PALETTE MÀU MỚI (TỐN 0 TOKEN AI)
-   #EDC7B7 (Peach/Cam nhạt) | #EEE2DC (Kem sáng) | #BAB2B5 (Ghi dịu)
-   #123C69 (Xanh Navy đậm)  | #AC3B61 (Magenta nhấn)
+   MINIRMS / RATETRACKER AI - MODERN COLOR PALETTE & UI FIXES
+   Author: Vibe Coding Helper (0 Token Cost)
    ========================================================== */
 
-/* 1. Thiết lập CSS Variables toàn cục */
+/* 1. KHAI BÁO BỘ BIẾN MÀU PHONG THỦY MODERN PALETTE */
 :root {
-  --color-peach: #EDC7B7;
-  --color-cream: #EEE2DC;
-  --color-gray: #BAB2B5;
-  --color-navy: #123C69;
-  --color-magenta: #AC3B61;
+  --color-peach: #EDC7B7;    /* Cam nhạt Header / Highlight */
+  --color-cream: #EEE2DC;    /* Nền ứng dụng dịu mắt */
+  --color-gray: #BAB2B5;     /* Màu viền dịu nhẹ */
+  --color-navy: #123C69;     /* Nút chính & Tiêu đề */
+  --color-magenta: #AC3B61;  /* Điểm nhấn / Active State */
 }
 
-/* 2. Nền ứng dụng & Header */
+/* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
 body {
-  background-color: #EEE2DC !important; /* Gam kem nhạt dịu mắt */
+  background-color: #EEE2DC !important;
+  color: #1e293b !important;
 }
 
 header, nav, .bg-header {
-  background-color: #EDC7B7 !important; /* Cam nhạt phong thủy làm điểm nhấn thanh nav */
+  background-color: #EDC7B7 !important;
 }
 
-/* 3. Khung viền (Borders) & Các ô Input / Select */
-input, select, textarea, [class*="border"], .border, .border-dashed {
-  border-color: #123C69 !important; /* Viền Navy sắc nét, cực rõ cấu trúc card */
-}
-
-/* 4. Thẻ Card / Container chứa nội dung */
-.bg-white, .card, [class*="rounded-"] {
-  background-color: #ffffff !important;
-}
-
-/* 5. Nút bấm chính (Primary Action Buttons) */
-button.bg-primary, 
-button[type="submit"],
-.bg-salmon,
-[class*="bg-primary"] {
-  background-color: #123C69 !important; /* Nút Navy tạo vẻ uy tín, vững chãi */
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
-/* Nút bấm mua hàng / Nút nhấn mạnh đặc biệt (Accent / Highlight) */
-.btn-accent, .bg-magenta, button.btn-danger {
-  background-color: #AC3B61 !important; /* Hồng Magenta nổi bật */
-  color: #ffffff !important;
-}
-
-/* 6. Văn bản & Tiêu đề (Đảm bảo contrast 100% không nhòe) */
-h1, h2, h3, h4, h5, h6, .font-bold {
-  color: #123C69 !important; /* Tiêu đề Xanh Navy đầm tính */
-}
-
-p, span, label, td, th {
-  color: #1e293b !important; /* Text thường màu đen xám nét căng */
-}
-
-/* Mắt lịch / Trạng thái phụ */
-.text-muted, .text-gray-500 {
-  color: #BAB2B5 !important;
-}
-/* ==========================================================
-   LÀM MỜ VÀ NGHỆ THUẬT HÓA ĐƯỜNG VIỀN (BORDER) - 0 TOKEN
-   ========================================================== */
-
-/* 1. Đổi viền các ô Input, Select, Dropdown sang màu Ghi dịu nhẹ (#BAB2B5) */
-input, 
-select, 
-textarea, 
-[class*="border"] {
-  border-color: #BAB2B5 !important;
-  border-width: 1px !important;
-}
-
-/* 2. Giảm độ gắt viền Bảng (Table) & Viền Card lớn */
-table, 
-th, 
-td, 
-.border,
-.bg-white.rounded-xl,
-.bg-white.rounded-2xl {
-  border-color: rgba(186, 178, 181, 0.4) !important; /* Viền xám mờ mượt mà */
-  border-width: 1px !important;
-}
-
-/* 3. Đồ họa đường kẻ ngang ngăn cách các hàng trong bảng nhẹ nhàng */
-table tr {
-  border-bottom: 1px solid rgba(186, 178, 181, 0.3) !important;
-}
-
-/* 4. Giữ nét viền Focus khi người dùng bấm vào ô Select/Input */
-input:focus, select:focus {
-  border-color: #123C69 !important; /* Đổi sang Navy khi đang active */
-  outline: none !important;
-}
-/* ==========================================================
-   LÀM XÁM NỀN VÀ MỜ CHỮ CÁC NGÀY NGOÀI THÁNG TRÊN LỊCH (0 TOKEN)
-   ========================================================== */
-
-/* 1. Phủ màu nền xám nhạt dịu cho ô ngày thuộc tháng khác */
-[class*="calendar"] .opacity-40,
-[class*="calendar"] .opacity-50,
-[class*="calendar"] .text-slate-400,
-[class*="calendar"] .text-gray-400,
-[class*="calendar"] [class*="outside"],
-[class*="day-outside"] {
-  background-color: #f1f5f9 !important; /* Màu xám nhạt Slate-100 dịu mắt */
-  opacity: 0.7 !important;
-}
-
-/* 2. Làm mờ chữ số ngày (28, 29, 30, 1...) để làm nổi bật các ngày trong tháng */
-[class*="calendar"] .opacity-40 *,
-[class*="calendar"] .opacity-50 *,
-[class*="calendar"] .text-slate-400 *,
-[class*="calendar"] .text-gray-400 *,
-[class*="calendar"] [class*="outside"] * {
-  color: #94a3b8 !important; /* Chữ màu xám mờ */
-  font-weight: 400 !important;
-}
-
-/* 3. Giữ đường viền mờ nhạt đồng bộ cho toàn bộ ô lịch */
-[class*="calendar"] [class*="day"],
-[class*="calendar"] .grid > div {
-  border-color: rgba(186, 178, 181, 0.4) !important;
-}
-/* ==========================================================
-   1. KHẮC PHỤC MENU TRÊN HEADER (RÕ RÀNG TRẠNG THÁI ACTIVE)
-   ========================================================== */
-
-/* Trả lại dạng text menu thanh thoát */
+/* 3. ĐIỀU CHỈNH MENU HEADER (PHÂN BIỆT RÕ TRẠNG THÁI ACTIVE) */
+/* Reset các nút menu về dạng text thanh thoát */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -176,11 +70,12 @@ header nav button,
   font-weight: 600 !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 6px 14px !important;
+  padding: 8px 16px !important;
   border-radius: 8px !important;
+  transition: all 0.2s ease !important;
 }
 
-/* Nổi bật TAB ĐANG CHỌN (Active Page/Tab) bằng nền Navy chữ Trắng */
+/* Highlight Nổi bật TRANG/TAB ĐANG CHỌN (Active) */
 header nav a.active,
 header nav button.active,
 header nav [aria-current="page"],
@@ -188,37 +83,76 @@ header nav .bg-white,
 .bg-[#EDC7B7] .bg-white,
 .bg-[#EDC7B7] [data-state="active"] {
   background-color: #123C69 !important; /* Xanh Navy đậm */
-  color: #ffffff !important;            /* Chữ trắng rõ nét */
+  color: #ffffff !important;            /* Chữ trắng nét căng */
   font-weight: 700 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* ==========================================================
-   2. KHẮC PHỤC DỨT ĐIỂM CÁC NGÀY NGOÀI THÁNG TRÊN LỊCH
-   ========================================================== */
+/* 4. ĐƯỜNG VIỀN MỜ DỊU MẮT (BORDER) */
+input, select, textarea {
+  border-color: #BAB2B5 !important;
+  border-width: 1px !important;
+  background-color: #ffffff !important;
+}
 
-/* Ép xám nền cho các ngày thuộc tháng trước/tháng sau */
+input:focus, select:focus {
+  border-color: #123C69 !important;
+  outline: none !important;
+}
+
+table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
+  border-color: rgba(186, 178, 181, 0.4) !important;
+}
+
+/* 5. NÚT BẤM VÀ THẺ NỘI DUNG (CARDS) */
+.bg-white, .card {
+  background-color: #ffffff !important;
+}
+
+/* Nút bấm hành động chính */
+button.bg-primary, 
+button[type="submit"],
+[class*="bg-primary"] {
+  background-color: #123C69 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+button.bg-primary:hover, button[type="submit"]:hover {
+  background-color: #0d2a4a !important;
+}
+
+/* 6. XỬ LÝ LỊCH: LÀM XÁM NỀN & MỜ CÁC NGÀY NGOÀI THÁNG */
+/* Phủ màu xám nhạt cho toàn bộ các ô ngày thuộc tháng trước/tháng sau */
 .rdp-day_outside,
 .day-outside,
 [class*="day-outside"],
 [class*="outside"],
 button[name="day"][aria-selected="false"].opacity-50,
+button[name="day"].opacity-50,
 div[class*="day"]:has(.text-muted-foreground) {
-  background-color: #e2e8f0 !important; /* Xám nhạt Slate-200 */
-  opacity: 0.65 !important;
+  background-color: #e2e8f0 !important; /* Xám nhạt dịu mắt */
+  opacity: 0.6 !important;
 }
 
 /* Làm mờ hẳn số ngày ngoài tháng (28, 29, 30, 1...) */
 .rdp-day_outside *,
 .day-outside *,
 [class*="day-outside"] *,
-[class*="outside"] * {
-  color: #94a3b8 !important; /* Chữ xám mờ */
+[class*="outside"] *,
+button[name="day"].opacity-50 * {
+  color: #94a3b8 !important;
   font-weight: 400 !important;
 }
 
-/* Giữ ô ngày đang được chọn (Ví dụ ngày 21) nổi bật viền Magenta/Navy */
+/* Viền highlight cho ngày đang được chọn trên lịch (Ví dụ ngày 21) */
 button[aria-selected="true"],
 .rdp-day_selected {
   border: 2px solid #AC3B61 !important;
   background-color: #ffffff !important;
 }
+
+/* 7. VĂN BẢN VÀ TIÊU ĐỀ */
+h1, h2, h3, h4, h5, h6 {
+  color: #123C69 !important;
+}  
