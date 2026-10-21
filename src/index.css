@@ -218,38 +218,40 @@ svg, svg * {
   color: inherit;
 }
 /* ==========================================================
-   FORCE OVERRIDE: DROPDOWN MENU TẢI FILE MẪU (0 TOKEN AI)
+   MINIRMS - RADIX POPPER DROPDOWN OVERRIDE (0 TOKEN AI)
    ========================================================== */
 
-/* 1. Đè trực tiếp vào container Radix Portal */
-body > [data-radix-popper-content-wrapper],
-body [role="menu"],
-body [role="menuitem"],
-body [class*="DropdownMenuContent"],
-body [class*="DropdownMenuItem"] {
+/* Ép background và viền cho khung Menu Popup */
+div[data-radix-popper-content-wrapper],
+div[role="menu"],
+div[class*="DropdownMenuContent"],
+div[class*="popover-content"] {
   background-color: #ffffff !important;
   border: 1px solid #BAB2B5 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
   z-index: 999999 !important;
 }
 
-/* 2. Đè màu chữ & icon bên trong Menu Item (bất kể class Tailwind hardcode nào) */
-body [role="menuitem"] *,
-body [role="option"] *,
-body [class*="DropdownMenuItem"] *,
-body [class*="DropdownMenuItem"] span,
-body [class*="DropdownMenuItem"] svg {
-  color: #123C69 !important; /* Xanh Navy đầm nét */
+/* Ép TẤT CẢ các thẻ con (span, p, svg, button...) bên trong Dropdown về màu Xanh Navy */
+div[data-radix-popper-content-wrapper] *,
+div[role="menu"] *,
+div[role="menuitem"] *,
+div[class*="DropdownMenuItem"] *,
+[data-radix-collection-item] * {
+  color: #123C69 !important;
+  fill: #123C69 !important;
   stroke: #123C69 !important;
   font-weight: 600 !important;
   opacity: 1 !important;
 }
 
-/* 3. Hiệu ứng Hover đổi màu nổi bật */
-body [role="menuitem"]:hover,
-body [role="menuitem"]:hover *,
-body [class*="DropdownMenuItem"]:hover,
-body [class*="DropdownMenuItem"]:hover * {
+/* Hiệu ứng khi rê chuột vào Menu Item (Hover) */
+div[role="menuitem"]:hover,
+div[role="menuitem"]:hover *,
+div[class*="DropdownMenuItem"]:hover,
+div[class*="DropdownMenuItem"]:hover * {
   background-color: #EEE2DC !important;
-  color: #AC3B61 !important; /* Magenta */
+  color: #AC3B61 !important;
+  fill: #AC3B61 !important;
   stroke: #AC3B61 !important;
 }
