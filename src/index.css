@@ -37,8 +37,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - FIX TIÊU ĐỀ GIAI ĐOẠN ÁP DỤNG
-   Tốn đúng 0 Token AI - Dán thay thế toàn bộ src/index.css
+   MINIRMS / RATETRACKER AI - MATRIX TABLE & FULL CONTRAST FIX
+   Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
@@ -64,7 +64,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
+/* 3. MENU HEADER (ACTIVE STATE RÕ RÀNG) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -90,10 +90,54 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. SỬA DỨT ĐIỂM DÒNG "GIAI ĐOẠN ÁP DỤNG" & TIÊU ĐỀ PHỤ
+   4. CHUẨN HÓA BẢNG MA TRẬN OTA (MATRIX TABLE)
    ========================================================== */
+/* Header tiêu đề bảng */
+table th {
+  color: #123C69 !important;
+  font-weight: 700 !important;
+}
 
-/* Ép tất cả tiêu đề phụ, dòng có icon lịch/nhãn nhóm về màu Xanh Navy rõ nét */
+/* Đồng bộ toàn bộ chữ nội dung trong bảng về cùng độ dày nét căng (Không bị lúc đậm lúc mảnh) */
+table td, 
+table td span, 
+table td div {
+  font-weight: 500 !important;
+  color: #1e293b;
+}
+
+/* Tên loại phòng & Gói giá */
+table td:first-child,
+table td:nth-child(2) {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+/* CỘT GIÁ BÁN: Màu Xanh Navy Đậm (#123C69) */
+table td:has(+ td),
+table td[class*="font-bold"],
+table td:nth-child(4),
+table td:nth-child(6),
+table td:nth-child(8),
+table td:nth-child(10),
+table td:nth-child(12) {
+  color: #123C69 !important;
+  font-weight: 600 !important;
+}
+
+/* CỘT GIÁ THU VỀ: Đổi sang màu Xanh Xám Slate Dịu (#334155) phân biệt rõ ràng */
+table td:nth-child(5),
+table td:nth-child(7),
+table td:nth-child(9),
+table td:nth-child(11),
+table td:nth-child(13) {
+  color: #334155 !important;
+  font-weight: 500 !important;
+}
+
+/* ==========================================================
+   5. SỬA DỨT ĐIỂM TIÊU ĐỀ PHỤ & LABELS CHECKBOX
+   ========================================================== */
 h1, h2, h3, h4, h5, h6, 
 .font-bold, .font-semibold,
 [class*="text-orange-"], 
@@ -104,12 +148,10 @@ div:has(> svg) {
   font-weight: 700 !important;
 }
 
-/* Ép màu icon lịch/mũi tên đi kèm tiêu đề */
 div:has(> svg) svg {
   color: #123C69 !important;
 }
 
-/* Danh sách checkbox (Superior King, Superior Twin, Deluxe...) */
 label, 
 label span,
 [class*="checkbox"] + label,
@@ -121,7 +163,6 @@ label span,
   font-weight: 500 !important;
 }
 
-/* Nút "Tất cả loại phòng" */
 button.border-orange-200,
 button.border-amber-200,
 button[class*="border"] {
@@ -131,7 +172,7 @@ button[class*="border"] {
 }
 
 /* ==========================================================
-   5. POPOVER & DROPDOWN MENU PORTAL (KASEN, FURIN, NIHOMA...)
+   6. POPOVER & DROPDOWN MENU PORTAL
    ========================================================== */
 div[data-radix-popper-content-wrapper],
 div[role="dialog"],
@@ -151,28 +192,6 @@ div[class*="popover-content"] label,
 div[class*="popover-content"] span {
   color: #0f172a !important;
   font-weight: 500 !important;
-}
-
-/* ==========================================================
-   6. BẢNG DỮ LIỆU PHÍA DƯỚI (TABLE)
-   ========================================================== */
-table th {
-  color: #123C69 !important;
-  font-weight: 700 !important;
-}
-
-table td, 
-table td span, 
-table td div {
-  color: #1e293b !important;
-  font-weight: 400 !important;
-}
-
-table td.font-bold, 
-table td [class*="font-bold"],
-table td:nth-child(4) {
-  color: #123C69 !important;
-  font-weight: 700 !important;
 }
 
 /* ==========================================================
