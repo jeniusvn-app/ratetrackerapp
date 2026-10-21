@@ -4,10 +4,8 @@ import {
   BedDouble,
   Settings2,
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   CheckCircle2,
-  MinusCircle,
   Save,
   Clock,
   CalendarRange,
@@ -72,8 +70,6 @@ function parseBookedDateTime(raw: unknown): Date | null {
   return isNaN(fallback.getTime()) ? null : fallback;
 }
 
-type BadgeStatus = 'red' | 'green' | 'yellow' | 'grey' | 'none';
-
 interface DayCellData {
   date: string;
   soldRooms: number;
@@ -82,17 +78,8 @@ interface DayCellData {
   pickup24h: number;
   adr: number;
   cancelRns: number;
-  status: BadgeStatus;
   perRoomType: { roomType: string; sold: number; capacity: number; occupancy: number }[];
 }
-
-const STATUS_META: Record<BadgeStatus, { label: string; color: string; bg: string; border: string; icon: typeof AlertTriangle }> = {
-  red: { label: 'Bán nhanh', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: TrendingUp },
-  green: { label: 'Nên kích cầu', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: TrendingDown },
-  yellow: { label: 'Lệch hạng phòng', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: AlertTriangle },
-  grey: { label: 'Bán rất chậm', color: 'text-navy-500', bg: 'bg-navy-50', border: 'border-navy-100', icon: MinusCircle },
-  none: { label: '', color: '', bg: '', border: '', icon: MinusCircle },
-};
 
 export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; manualSold: Map<string, number> }) {
   const { roomTypes } = useRoomTypes(hotelId || null);
@@ -244,33 +231,6 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
       });
 
       const occupancy = totalRooms > 0 ? (soldRooms / totalRooms) * 100 : 0;
-      const daysUntil = Math.max(0, i);
-
-      // Status badge logic
-      let status: BadgeStatus = 'none';
-      // RED: Occupancy >= 80% OR 24h pickup >= 15% of total_rooms
-      if (occupancy >= 80 || (totalRooms > 0 && pickup24h >= totalRooms * 0.15)) {
-        status = 'red';
-      }
-      // GREEN: Days <= 3 AND Occupancy 30-50%
-      else if (daysUntil <= 3 && occupancy >= 30 && occupancy <= 50) {
-        status = 'green';
-      }
-      // YELLOW: Lowest room category occupancy == 100% AND highest room category vacancy >= 50%
-      else if (
-        perRoomType.length > 0 &&
-        perRoomType.some((rt) => rt.capacity > 0 && rt.occupancy >= 100) &&
-        perRoomType.some((rt) => {
-          const vacancy = rt.capacity > 0 ? ((rt.capacity - rt.sold) / rt.capacity) * 100 : 0;
-          return vacancy >= 50;
-        })
-      ) {
-        status = 'yellow';
-      }
-      // GREY: Days <= 3 AND Occupancy < 30%
-      else if (daysUntil <= 3 && occupancy < 30) {
-        status = 'grey';
-      }
 
       cells.push({
         date: dateISO,
@@ -280,7 +240,6 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
         pickup24h,
         adr,
         cancelRns,
-        status,
         perRoomType,
       });
     }
@@ -645,27 +604,9 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
           </Card>
           {/* ============ 30-DAY ARRIVAL CALENDAR GRID ============ */}
           <Card className="p-4 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
-                <TrendingUp size={16} className="text-gold-600" />
-                Lưới Arrival 30 ngày (Future Occupancy)
-              </div>
-              {/* Legend */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                {(['red', 'green', 'yellow', 'grey'] as BadgeStatus[]).map((s) => {
-                  const meta = STATUS_META[s];
-                  const Icon = meta.icon;
-                  return (
-                    <span
-                      key={s}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border ${meta.bg} ${meta.border} ${meta.color}`}
-                    >
-                      <Icon size={12} />
-                      {meta.label}
-                    </span>
-                  );
-                })}
-              </div>
+            <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+              <TrendingUp size={16} className="text-gold-600" />
+              Lưới Arrival 30 ngày (Future Occupancy)
             </div>
 
             {loading ? (
@@ -676,28 +617,15 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
                   const dt = new Date(cell.date + 'T00:00:00');
                   const weekday = WEEKDAY_VI[dt.getDay()];
                   const isSaturday = dt.getDay() === 6;
-                  const meta = STATUS_META[cell.status];
-                  const StatusIcon = meta.icon;
                   return (
                     <div
                       key={cell.date}
-                      className={`rounded-lg border p-2.5 flex flex-col gap-1 min-h-[120px] ${
-                        cell.status !== 'none'
-                          ? `${meta.bg} ${meta.border}`
-                          : isSaturday
-                            ? 'bg-amber-50/40 border-amber-100'
-                            : 'bg-white border-navy-100'
-                      }`}
+                      className="rounded-lg border border-navy-200 bg-white p-2.5 flex flex-col gap-1 min-h-[120px]"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`text-xs font-semibold ${isSaturday ? 'text-amber-700' : 'text-navy-700'}`}>
                           {weekday} {toDMY(cell.date).split('/')[0]}/{toDMY(cell.date).split('/')[1]}
                         </span>
-                        {cell.status !== 'none' && (
-                          <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${meta.color}`}>
-                            <StatusIcon size={10} />
-                          </span>
-                        )}
                       </div>
                       <div className="text-sm font-bold mono-num text-navy-800">
                         {cell.soldRooms} / {cell.totalRooms}
@@ -711,9 +639,6 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
                       <div className="text-[11px] text-navy-400">
                         ADR: <span className="mono-num">{cell.adr > 0 ? formatVND(Math.round(cell.adr)) : '—'}</span>
                       </div>
-                      {cell.status !== 'none' && (
-                        <div className={`text-[10px] font-semibold ${meta.color} mt-auto`}>{meta.label}</div>
-                      )}
                     </div>
                   );
                 })}
