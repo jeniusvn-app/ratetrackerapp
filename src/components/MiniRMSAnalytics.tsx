@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   MinusCircle,
   Save,
+  ClipboardList,
+  Edit3,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRoomTypes } from '@/lib/useRoomTypes';
@@ -39,6 +41,11 @@ interface PickupRecord {
 interface InventoryConfig {
   room_type_id: string;
   physical_capacity: number;
+}
+
+interface ManualRoomsSold {
+  date: string;
+  actual_rooms_sold: number;
 }
 
 function roomNights(r: PickupRecord): number {
@@ -100,6 +107,9 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
   const [invMsg, setInvMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [manualSold, setManualSold] = useState<Map<string, number>>(new Map());
+  const [manualDraft, setManualDraft] = useState<Map<string, string>>(new Map());
+  const [savingManual, setSavingManual] = useState(false);
 
   // Load inventory config
   const loadInventory = useCallback(async () => {
@@ -134,14 +144,27 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
     setLoading(true);
     const today = toISODate(new Date());
     const end30 = toISODate(new Date(Date.now() + 30 * 86400000));
-    const { data } = await supabase
-      .from('pickup_records')
-      .select('*')
-      .eq('hotel_id', hotelId)
-      .gte('arrival_date', today)
-      .lte('arrival_date', end30)
-      .order('arrival_date', { ascending: true });
-    setRecords((data as PickupRecord[]) || []);
+    const [recRes, manualRes] = await Promise.all([
+      supabase
+        .from('pickup_records')
+        .select('*')
+        .eq('hotel_id', hotelId)
+        .gte('arrival_date', today)
+        .lte('arrival_date', end30)
+        .order('arrival_date', { ascending: true }),
+      supabase
+        .from('manual_rooms_sold')
+        .select('date, actual_rooms_sold')
+        .eq('hotel_id', hotelId)
+        .gte('date', today)
+        .lte('date', end30),
+    ]);
+    setRecords((recRes.data as PickupRecord[]) || []);
+    const mMap = new Map<string, number>();
+    ((manualRes.data as ManualRoomsSold[]) || []).forEach((row) => {
+      mMap.set(row.date, row.actual_rooms_sold);
+    });
+    setManualSold(mMap);
     setLoading(false);
   }, [hotelId]);
 
@@ -159,6 +182,13 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
     });
     setInventoryDraft(draftMap);
   }, [roomTypes, inventory]);
+
+  // Sync manual draft when manualSold or dayCells change
+  useEffect(() => {
+    const draft = new Map<string, string>();
+    manualSold.forEach((v, k) => draft.set(k, String(v)));
+    setManualDraft(draft);
+  }, [manualSold]);
 
   const totalRooms = useMemo(() => {
     let sum = 0;
@@ -206,7 +236,9 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
       const cancelled = dayRecs.filter((r) => r.status === 'Cancelled');
 
       // Sold rooms = total quantity of confirmed bookings arriving this date
-      const soldRooms = confirmed.reduce((s, r) => s + (Number(r.quantity) || 1), 0);
+      const puSoldRooms = confirmed.reduce((s, r) => s + (Number(r.quantity) || 1), 0);
+      const manualSoldForDate = manualSold.get(dateISO) ?? 0;
+      const soldRooms = Math.max(puSoldRooms, manualSoldForDate);
       const cancelRns = cancelled.reduce((s, r) => s + roomNights(r), 0);
 
       // 24h pickup: bookings booked in the last 24h that arrive on this date
@@ -272,7 +304,7 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
       });
     }
     return cells;
-  }, [records, roomTypes, inventory, totalRooms]);
+  }, [records, roomTypes, inventory, totalRooms, manualSold]);
 
   // Source breakdown
   const sourceBreakdown = useMemo(() => {
@@ -339,6 +371,23 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
     inventoryDraft.forEach((v) => (sum += Number(v) || 0));
     return sum;
   }, [inventoryDraft]);
+
+  // Save manual rooms sold for a single date
+  const saveManualSold = async (date: string) => {
+    if (!hotelId) return;
+    setSavingManual(true);
+    const val = Number(manualDraft.get(date) || 0) || 0;
+    const { error } = await supabase
+      .from('manual_rooms_sold')
+      .upsert({ hotel_id: hotelId, date, actual_rooms_sold: val }, { onConflict: 'hotel_id,date' });
+    if (error) {
+      setInvMsg({ kind: 'err', text: `Lỗi lưu rooms sold: ${error.message}` });
+    } else {
+      setManualSold((prev) => new Map(prev).set(date, val));
+      setInvMsg({ kind: 'ok', text: `Đã lưu rooms sold cho ${toDMY(date)}.` });
+    }
+    setSavingManual(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -408,6 +457,77 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
               <span className="text-xs text-navy-400">Bạn không có quyền chỉnh sửa cấu hình phòng vật lý.</span>
             </div>
           </>
+        )}
+      </Card>
+
+      {/* ============ MANUAL ACTUAL ROOMS SOLD (Hybrid Occupancy Override) ============ */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+          <ClipboardList size={16} className="text-gold-600" />
+          Nhập Rooms Sold thực tế (Hybrid Occupancy Override)
+        </div>
+        <p className="text-xs text-navy-400">
+          Nhập số phòng thực tế đã bán cho từng ngày. Hệ thống sẽ lấy giá trị lớn hơn giữa PU Imported và Manual để tính Occupancy %.
+        </p>
+        {loading ? (
+          <EmptyState message="Đang tải…" />
+        ) : (
+          <div className="overflow-x-auto thin-scroll">
+            <table className="w-full text-xs">
+              <thead className="bg-navy-50 text-navy-700">
+                <tr>
+                  <th className="text-left px-2 py-2 font-semibold whitespace-nowrap">Ngày</th>
+                  <th className="text-right px-2 py-2 font-semibold whitespace-nowrap">PU Sold</th>
+                  <th className="text-center px-2 py-2 font-semibold whitespace-nowrap">Manual Sold</th>
+                  <th className="text-right px-2 py-2 font-semibold whitespace-nowrap">Effective Sold</th>
+                  <th className="text-right px-2 py-2 font-semibold whitespace-nowrap">Total Capacity</th>
+                  <th className="text-right px-2 py-2 font-semibold whitespace-nowrap">Occ %</th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dayCells.map((cell) => {
+                  const puSold = records
+                    .filter((r) => r.arrival_date === cell.date && r.status !== 'Cancelled')
+                    .reduce((s, r) => s + (Number(r.quantity) || 1), 0);
+                  const manualVal = manualDraft.get(cell.date) ?? '';
+                  const effective = Math.max(puSold, Number(manualVal) || 0);
+                  const occ = cell.totalRooms > 0 ? (effective / cell.totalRooms) * 100 : 0;
+                  return (
+                    <tr key={cell.date} className="border-t border-navy-50">
+                      <td className="px-2 py-1.5 text-navy-700 whitespace-nowrap">{toDMY(cell.date)}</td>
+                      <td className="px-2 py-1.5 text-right mono-num text-navy-500">{puSold}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <input
+                          type="number"
+                          value={manualVal}
+                          onChange={(e) => setManualDraft((prev) => new Map(prev).set(cell.date, e.target.value))}
+                          placeholder="0"
+                          className="w-16 text-center bg-white border border-navy-200 rounded-md px-1.5 py-1 text-xs text-navy-800 focus:outline-none focus:ring-1 focus:ring-navy-400"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5 text-right mono-num font-semibold text-navy-800">{effective}</td>
+                      <td className="px-2 py-1.5 text-right mono-num text-navy-500">{cell.totalRooms}</td>
+                      <td className="px-2 py-1.5 text-right mono-num font-semibold text-navy-700">{occ.toFixed(0)}%</td>
+                      <td className="px-2 py-1.5">
+                        <button
+                          onClick={() => saveManualSold(cell.date)}
+                          disabled={savingManual}
+                          className="p-1 rounded-md text-navy-400 hover:bg-navy-100 hover:text-navy-700"
+                          title="Lưu"
+                        >
+                          <Save size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {invMsg && invMsg.kind === 'ok' && invMsg.text.includes('rooms sold') && (
+          <div className="text-xs text-emerald-700">{invMsg.text}</div>
         )}
       </Card>
 

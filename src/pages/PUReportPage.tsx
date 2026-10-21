@@ -12,6 +12,7 @@ import {
   Upload,
   BarChart2,
   LineChart,
+  Swords,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -22,6 +23,7 @@ import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/compone
 import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import type { Hotel } from '@/types';
 import { MiniRMSAnalytics } from '@/components/MiniRMSAnalytics';
+import { CompsetTab } from '@/components/CompsetTab';
 
 const STORAGE_BUCKET = 'pickup-reports';
 
@@ -241,7 +243,7 @@ export function PUReportPage() {
   const isFullAccess = canAccessFullPuReport(user);
   const isUploadOnly = !isFullAccess && getMiniRmsAccess(user) === 'data_only';
   const canSeeRevenue = isFullAccess;
-  const [activeTab, setActiveTab] = useState<'pu' | 'analytics'>('pu');
+  const [activeTab, setActiveTab] = useState<'pu' | 'analytics' | 'compset'>('pu');
 
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [logs, setLogs] = useState<PickupImportLog[]>([]);
@@ -787,9 +789,22 @@ export function PUReportPage() {
           Analytics
         </button>
         )}
+        {isFullAccess && (
+        <button
+          onClick={() => setActiveTab('compset')}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'compset'
+              ? 'bg-white text-navy-800 shadow-sm'
+              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+          }`}
+        >
+          <Swords size={16} />
+          Compset
+        </button>
+        )}
       </div>
 
-      {/* ============ SHARED HOTEL SELECTOR (both tabs) ============ */}
+      {/* ============ SHARED HOTEL SELECTOR (all tabs) ============ */}
       <div className="flex flex-wrap items-start gap-3">
         <Field label="Khách sạn" className="w-full max-w-md">
           <div className="relative">
@@ -838,6 +853,15 @@ export function PUReportPage() {
       {activeTab === 'analytics' && !isFullAccess && (
         <Card className="p-4">
           <EmptyState message="Bạn không có quyền truy cập tab Analytics & MiniRMS." />
+        </Card>
+      )}
+
+      {activeTab === 'compset' && isFullAccess && selectedHotelId && (
+        <CompsetTab hotelId={selectedHotelId} />
+      )}
+      {activeTab === 'compset' && !isFullAccess && (
+        <Card className="p-4">
+          <EmptyState message="Bạn không có quyền truy cập tab Compset." />
         </Card>
       )}
 
