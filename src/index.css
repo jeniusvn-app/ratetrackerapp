@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - FULL FIX UI & TEXT CONTRAST
-   Tốn đúng 0 Token AI - Dán thay thế toàn bộ file src/index.css
+   MINIRMS / RATETRACKER AI - PERFECT UI & ICON COLORS FIX
+   Tốn đúng 0 Token AI - Dán thay thế toàn bộ src/index.css
    ========================================================== */
 
-/* 1. KHAI BÁO BỘ MÀU PHONG THỦY MODERN PALETTE */
+/* 1. PALETTE MÀU CHÍNH */
 :root {
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
@@ -60,7 +60,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. ĐIỀU CHỈNH MENU HEADER (RÕ RÀNG TRẠNG THÁI ACTIVE) */
+/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -73,7 +73,6 @@ header nav button,
   border-radius: 8px !important;
 }
 
-/* Highlight Tab đang chọn */
 header nav a.active,
 header nav button.active,
 header nav [aria-current="page"],
@@ -86,31 +85,45 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. SỬA TRIỆT ĐỂ LỖI CHỮ BỊ MỜ / TÀNG HÌNH (LABEL, CHECKBOX, CỘT BẢNG) */
-p, span, label, td, th, div, input, select {
-  color: #0f172a !important; /* Ép toàn bộ chữ về màu đen xám đậm nét căng */
+/* 4. CHỮ RÕ NÉT VÀ HIỂN THỊ ĐẦY ĐỦ */
+p, span, label, td, th, input, select {
+  color: #0f172a;
 }
 
-/* Ép màu tiêu đề bảng & tên loại phòng nổi rõ */
 th, .font-medium, .font-semibold, .font-bold {
-  color: #123C69 !important; /* Xanh Navy đầm tính */
+  color: #123C69;
 }
 
-/* Sửa các class chữ mờ của Tailwind bị nhòe */
-.text-muted-foreground, 
-[class*="text-slate-"], 
-[class*="text-gray-"], 
-[class*="text-orange-"], 
-[class*="text-amber-"] {
-  color: #334155 !important;
+/* 5. KHÔI PHỤC MÀU SẮC TỰ NHIÊN CHO ICON SVG VÀ CÁC NÚT TRẠNG THÁI */
+svg, svg * {
+  color: inherit; /* Cho phép icon nhận đúng màu trạng thái vốn có */
 }
 
-/* 5. KHUNG VIỀN MỜ DỊU MẮT & ĐÁY BẢNG */
+/* Giữ lại màu đặc trưng của các Badge trạng thái (Nên kích cầu, Bán nhanh, Bán chậm...) */
+[class*="text-green-"], [class*="bg-green-"],
+[class*="text-emerald-"], [class*="bg-emerald-"] {
+  color: #059669 !important;
+}
+
+[class*="text-red-"], [class*="bg-red-"],
+[class*="text-rose-"] {
+  color: #dc2626 !important;
+}
+
+[class*="text-amber-"], [class*="text-orange-"],
+[class*="text-yellow-"] {
+  color: #d97706 !important;
+}
+
+[class*="text-blue-"], [class*="text-sky-"] {
+  color: #0284c7 !important;
+}
+
+/* 6. BORDER & CARD CONTAINER */
 input, select, textarea {
   border-color: #BAB2B5 !important;
   border-width: 1px !important;
   background-color: #ffffff !important;
-  color: #0f172a !important;
 }
 
 input:focus, select:focus {
@@ -126,7 +139,7 @@ table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
   background-color: #ffffff !important;
 }
 
-/* 6. NÚT BẤM HÀNH ĐỘNG */
+/* 7. NÚT BẤM HÀNH ĐỘNG CHÍNH */
 button.bg-primary, 
 button[type="submit"],
 [class*="bg-primary"] {
@@ -135,7 +148,7 @@ button[type="submit"],
   font-weight: 600 !important;
 }
 
-/* 7. LỊCH: LÀM XÁM NỀN CÁC NGÀY NGOÀI THÁNG */
+/* 8. XỬ LÝ LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU */
 .rdp-day_outside,
 .day-outside,
 [class*="day-outside"],
