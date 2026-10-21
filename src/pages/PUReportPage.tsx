@@ -784,7 +784,7 @@ export function PUReportPage() {
           }`}
         >
           <LineChart size={16} />
-          Analytics & MiniRMS
+          Analytics
         </button>
         )}
       </div>
