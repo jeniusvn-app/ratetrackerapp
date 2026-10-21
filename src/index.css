@@ -65,3 +65,29 @@ input, select, textarea {
   color: #000000 !important;
   font-weight: 700 !important;
 }
+/* ==========================================================
+   ĐỔI TOÀN BỘ VIỀN (BORDER) SANG MÀU DARKSALMON (#E9967A)
+   ========================================================== */
+
+/* 1. Viền của các ô nhập liệu (Select, Input, Datepicker) */
+input, 
+select, 
+textarea,
+[class*="border"] {
+  border-color: #E9967A !important;
+}
+
+/* 2. Viền của các Card, Khối chứa (Container) và Nút bấm có border */
+.border,
+.border-dashed,
+[class*="rounded-"],
+.bg-white.rounded-xl,
+.bg-white.rounded-2xl {
+  border-color: #E9967A !important;
+}
+
+/* 3. Tăng nhẹ độ nét cho đường viền đứt nét (Empty state "Chưa có yêu cầu nào") */
+.border-dashed {
+  border-style: dashed !important;
+  border-width: 1.5px !important;
+}
