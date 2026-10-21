@@ -865,7 +865,7 @@ export function PUReportPage() {
           onClick={() => setActiveTab('pu')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'pu'
-              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
               : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >
@@ -877,7 +877,7 @@ export function PUReportPage() {
           onClick={() => setActiveTab('analytics')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'analytics'
-              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
               : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >
@@ -890,7 +890,7 @@ export function PUReportPage() {
           onClick={() => setActiveTab('compset')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2.5 rounded-xl px-5 py-3 text-sm transition-all duration-200 border ${
             activeTab === 'compset'
-              ? 'bg-indigo-600 text-white font-semibold shadow-md shadow-indigo-500/25 border-indigo-500'
+              ? 'bg-[#1e293b] text-white font-semibold shadow-md shadow-slate-900/20 border-[#1e293b]'
               : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium border-slate-200/80'
           }`}
         >

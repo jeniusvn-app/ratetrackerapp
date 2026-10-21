@@ -543,22 +543,22 @@ export function CompsetTab({ hotelId }: { hotelId: string }) {
           onClick={() => setSubTab('setup')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
             subTab === 'setup'
-              ? 'bg-indigo-50 text-indigo-700 font-semibold border-2 border-indigo-600 shadow-xs'
+              ? 'bg-blue-50/80 text-[#0f172a] font-semibold border-2 border-[#1e293b] shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
           }`}
         >
-          <Building2 size={16} className={subTab === 'setup' ? 'text-indigo-600' : 'text-slate-400'} />
+          <Building2 size={16} className={subTab === 'setup' ? 'text-[#1e293b]' : 'text-slate-400'} />
           Compset Setup
         </button>
         <button
           onClick={() => setSubTab('tracker')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-200 ${
             subTab === 'tracker'
-              ? 'bg-indigo-50 text-indigo-700 font-semibold border-2 border-indigo-600 shadow-xs'
+              ? 'bg-blue-50/80 text-[#0f172a] font-semibold border-2 border-[#1e293b] shadow-xs'
               : 'bg-white text-slate-600 hover:bg-slate-50 font-medium border border-slate-200'
           }`}
         >
-          <Swords size={16} className={subTab === 'tracker' ? 'text-indigo-600' : 'text-slate-400'} />
+          <Swords size={16} className={subTab === 'tracker' ? 'text-[#1e293b]' : 'text-slate-400'} />
           Rate Tracker & Action Insights
         </button>
       </div>
