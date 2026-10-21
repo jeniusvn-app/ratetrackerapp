@@ -625,7 +625,7 @@ export function PUReportPage() {
       const cancelRows: CancelRow[] = [];
       let skipped = 0;
       for (const raw of json) {
-        const code = String(raw['Code'] ?? raw['code'] ?? raw['Booking ID'] ?? raw['booking_id'] ?? '').trim();
+        const code = String(raw['Code'] ?? raw['Booking ID'] ?? raw['BookingCode'] ?? raw['code'] ?? raw['booking_id'] ?? '').trim();
         const roomType = String(raw['Room Type'] ?? raw['room_type'] ?? '').trim();
         const rate = Number(String(raw['Rate'] ?? raw['Room Rate'] ?? raw['room_rate'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
         const arrivalRaw = raw['Arrival'] ?? raw['arrival'];
