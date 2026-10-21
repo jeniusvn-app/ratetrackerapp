@@ -37,31 +37,30 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MODERN COLOR PALETTE & UI FIXES
-   Author: Vibe Coding Helper (0 Token Cost)
+   MINIRMS / RATETRACKER AI - FULL FIX UI & TEXT CONTRAST
+   Tốn đúng 0 Token AI - Dán thay thế toàn bộ file src/index.css
    ========================================================== */
 
-/* 1. KHAI BÁO BỘ BIẾN MÀU PHONG THỦY MODERN PALETTE */
+/* 1. KHAI BÁO BỘ MÀU PHONG THỦY MODERN PALETTE */
 :root {
-  --color-peach: #EDC7B7;    /* Cam nhạt Header / Highlight */
-  --color-cream: #EEE2DC;    /* Nền ứng dụng dịu mắt */
-  --color-gray: #BAB2B5;     /* Màu viền dịu nhẹ */
-  --color-navy: #123C69;     /* Nút chính & Tiêu đề */
-  --color-magenta: #AC3B61;  /* Điểm nhấn / Active State */
+  --color-peach: #EDC7B7;
+  --color-cream: #EEE2DC;
+  --color-gray: #BAB2B5;
+  --color-navy: #123C69;
+  --color-magenta: #AC3B61;
 }
 
 /* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
 body {
   background-color: #EEE2DC !important;
-  color: #1e293b !important;
+  color: #0f172a !important;
 }
 
 header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. ĐIỀU CHỈNH MENU HEADER (PHÂN BIỆT RÕ TRẠNG THÁI ACTIVE) */
-/* Reset các nút menu về dạng text thanh thoát */
+/* 3. ĐIỀU CHỈNH MENU HEADER (RÕ RÀNG TRẠNG THÁI ACTIVE) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -72,27 +71,46 @@ header nav button,
   box-shadow: none !important;
   padding: 8px 16px !important;
   border-radius: 8px !important;
-  transition: all 0.2s ease !important;
 }
 
-/* Highlight Nổi bật TRANG/TAB ĐANG CHỌN (Active) */
+/* Highlight Tab đang chọn */
 header nav a.active,
 header nav button.active,
 header nav [aria-current="page"],
 header nav .bg-white,
 .bg-[#EDC7B7] .bg-white,
 .bg-[#EDC7B7] [data-state="active"] {
-  background-color: #123C69 !important; /* Xanh Navy đậm */
-  color: #ffffff !important;            /* Chữ trắng nét căng */
+  background-color: #123C69 !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. ĐƯỜNG VIỀN MỜ DỊU MẮT (BORDER) */
+/* 4. SỬA TRIỆT ĐỂ LỖI CHỮ BỊ MỜ / TÀNG HÌNH (LABEL, CHECKBOX, CỘT BẢNG) */
+p, span, label, td, th, div, input, select {
+  color: #0f172a !important; /* Ép toàn bộ chữ về màu đen xám đậm nét căng */
+}
+
+/* Ép màu tiêu đề bảng & tên loại phòng nổi rõ */
+th, .font-medium, .font-semibold, .font-bold {
+  color: #123C69 !important; /* Xanh Navy đầm tính */
+}
+
+/* Sửa các class chữ mờ của Tailwind bị nhòe */
+.text-muted-foreground, 
+[class*="text-slate-"], 
+[class*="text-gray-"], 
+[class*="text-orange-"], 
+[class*="text-amber-"] {
+  color: #334155 !important;
+}
+
+/* 5. KHUNG VIỀN MỜ DỊU MẮT & ĐÁY BẢNG */
 input, select, textarea {
   border-color: #BAB2B5 !important;
   border-width: 1px !important;
   background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 input:focus, select:focus {
@@ -101,15 +119,14 @@ input:focus, select:focus {
 }
 
 table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
-  border-color: rgba(186, 178, 181, 0.4) !important;
+  border-color: rgba(186, 178, 181, 0.5) !important;
 }
 
-/* 5. NÚT BẤM VÀ THẺ NỘI DUNG (CARDS) */
 .bg-white, .card {
   background-color: #ffffff !important;
 }
 
-/* Nút bấm hành động chính */
+/* 6. NÚT BẤM HÀNH ĐỘNG */
 button.bg-primary, 
 button[type="submit"],
 [class*="bg-primary"] {
@@ -118,24 +135,16 @@ button[type="submit"],
   font-weight: 600 !important;
 }
 
-button.bg-primary:hover, button[type="submit"]:hover {
-  background-color: #0d2a4a !important;
-}
-
-/* 6. XỬ LÝ LỊCH: LÀM XÁM NỀN & MỜ CÁC NGÀY NGOÀI THÁNG */
-/* Phủ màu xám nhạt cho toàn bộ các ô ngày thuộc tháng trước/tháng sau */
+/* 7. LỊCH: LÀM XÁM NỀN CÁC NGÀY NGOÀI THÁNG */
 .rdp-day_outside,
 .day-outside,
 [class*="day-outside"],
 [class*="outside"],
-button[name="day"][aria-selected="false"].opacity-50,
-button[name="day"].opacity-50,
-div[class*="day"]:has(.text-muted-foreground) {
-  background-color: #e2e8f0 !important; /* Xám nhạt dịu mắt */
-  opacity: 0.6 !important;
+button[name="day"].opacity-50 {
+  background-color: #e2e8f0 !important;
+  opacity: 0.65 !important;
 }
 
-/* Làm mờ hẳn số ngày ngoài tháng (28, 29, 30, 1...) */
 .rdp-day_outside *,
 .day-outside *,
 [class*="day-outside"] *,
@@ -145,14 +154,8 @@ button[name="day"].opacity-50 * {
   font-weight: 400 !important;
 }
 
-/* Viền highlight cho ngày đang được chọn trên lịch (Ví dụ ngày 21) */
 button[aria-selected="true"],
 .rdp-day_selected {
   border: 2px solid #AC3B61 !important;
   background-color: #ffffff !important;
 }
-
-/* 7. VĂN BẢN VÀ TIÊU ĐỀ */
-h1, h2, h3, h4, h5, h6 {
-  color: #123C69 !important;
-}  
