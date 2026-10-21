@@ -10,6 +10,8 @@ import {
   Layers,
   TrendingUp,
   Upload,
+  BarChart2,
+  LineChart,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -19,6 +21,7 @@ import { useAuth, canAccessFullPuReport } from '@/auth/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/components/ui';
 import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import type { Hotel } from '@/types';
+import { MiniRMSAnalytics } from '@/components/MiniRMSAnalytics';
 
 const STORAGE_BUCKET = 'pickup-reports';
 
@@ -237,6 +240,7 @@ export function PUReportPage() {
   const { user, hotels } = useAuth();
   const isFullAccess = canAccessFullPuReport(user);
   const isUploadOnly = !isFullAccess && !!user && user.can_upload_pu_only === true;
+  const [activeTab, setActiveTab] = useState<'pu' | 'analytics'>('pu');
 
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [logs, setLogs] = useState<PickupImportLog[]>([]);
@@ -753,11 +757,48 @@ export function PUReportPage() {
       )}
 
       <div>
-        <h1 className="text-lg font-semibold text-navy-800">PU Report — Báo cáo Pickup</h1>
+        <h1 className="text-lg font-semibold text-navy-800">PU Report — Báo cáo Pickup & MiniRMS</h1>
         <p className="text-xs text-navy-400 mt-0.5">
           Phân tích đặt phòng theo ngày đến, kênh bán và loại phòng. Mỗi lần import sẽ thêm dữ liệu mới (không ghi đè).
         </p>
       </div>
+
+      {/* ============ TAB NAVIGATION ============ */}
+      <div className="flex gap-1 bg-navy-50 rounded-xl p-1 border border-navy-100">
+        <button
+          onClick={() => setActiveTab('pu')}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'pu'
+              ? 'bg-white text-navy-800 shadow-sm'
+              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+          }`}
+        >
+          <BarChart3 size={16} />
+          PU Report
+        </button>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'analytics'
+              ? 'bg-white text-navy-800 shadow-sm'
+              : 'text-navy-500 hover:text-navy-700 hover:bg-navy-100'
+          }`}
+        >
+          <LineChart size={16} />
+          Analytics & MiniRMS
+        </button>
+      </div>
+
+      {activeTab === 'analytics' && isFullAccess && selectedHotelIds.length > 0 && (
+        <MiniRMSAnalytics hotelId={selectedHotelIds[0]} />
+      )}
+      {activeTab === 'analytics' && !isFullAccess && (
+        <Card className="p-4">
+          <EmptyState message="Bạn không có quyền truy cập tab Analytics & MiniRMS." />
+        </Card>
+      )}
+
+      {activeTab === 'pu' && (<>
 
       {/* ============ SECTION 1: ANALYTICS ============ */}
       <Card className="p-4 space-y-4">
@@ -1244,6 +1285,9 @@ export function PUReportPage() {
           </div>
         )}
       </Card>
+
+      </>
+      )}
 
       {/* History modal */}
       <Modal
