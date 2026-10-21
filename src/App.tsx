@@ -57,3 +57,18 @@ export default function App() {
     </AuthProvider>
   );
 }
+/* ÉP TOÀN BỘ SỐ NGÀY VÀ CHỮ TRÊN LỊCH SANG MÀU ĐEN ĐẬM RÕ NÉT */
+.calendar-grid span,
+[class*="calendar"] span,
+[class*="day"] span {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* GIỮ CHO NGÀY CỦA THÁNG KHÁC MÀU XÁM DỊU ĐỂ DỄ PHÂN BIỆT (NẾU CÓ) */
+.opacity-40 span,
+.text-slate-400 span,
+.outside-month span {
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
