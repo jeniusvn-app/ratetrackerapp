@@ -37,7 +37,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - ABSOLUTE FINAL UI & MATRIX FIX
+   MINIRMS / RATETRACKER AI - BADGE & MATRIX UNIFORMITY FIX
    Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
@@ -65,7 +65,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (ACTIVE STATE RÕ RÀNG) */
+/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -91,61 +91,67 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. CHUẨN HÓA BẢNG MA TRẬN OTA & BẢNG LỊCH GIÁ
+   4. ĐỒNG BỘ BADGE MÃ GIÁ (BAR 0, BAR 1, PEAK...) & BẢNG
    ========================================================== */
+
+/* Ép tất cả Badge Mã giá (BAR 0, BAR 1...) đồng nhất 100% về font chữ và độ đậm */
+table td [class*="badge"],
+table td span[class*="rounded"],
+table td div[class*="rounded"],
+[class*="bg-amber-"], 
+[class*="bg-orange-"] {
+  font-weight: 600 !important;
+  color: #123C69 !important;
+  background-color: #EDC7B7 !important;
+  border: 1px solid #BAB2B5 !important;
+}
+
 /* Header tiêu đề các cột */
 table th, table th * {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* Ép toàn bộ ô nội dung trong bảng về chữ thường đồng nhất nét rõ */
-table td, table td *, table td span, table td div {
-  font-weight: 400 !important;
+/* Đồng bộ toàn bộ chữ trong bảng không bị chữ đậm chữ nhạt */
+table td, table td span, table td div {
+  font-weight: 500 !important;
 }
 
-/* Tên Loại phòng & Gói giá */
-table td:first-child, table td:first-child *,
-table td:nth-child(2), table td:nth-child(2) * {
-  color: #0f172a !important;
+/* CỘT GIÁ BÁN: Màu Xanh Navy (#123C69) */
+table td:nth-child(4), table td:nth-child(4) *,
+table td:nth-child(6), table td:nth-child(6) *,
+table td:nth-child(8), table td:nth-child(8) *,
+table td:nth-child(10), table td:nth-child(10) *,
+table td:nth-child(12), table td:nth-child(12) * {
+  color: #123C69 !important;
   font-weight: 600 !important;
 }
 
-/* CỘT GIÁ BÁN (Tất cả các cột chứa Giá bán): Xanh Navy đậm nét (#123C69) */
-table td.font-bold, table td.font-bold *,
-table td[class*="font-bold"], table td[class*="font-bold"] *,
-table td[class*="text-blue"], table td[class*="text-blue"] *,
-table td[class*="text-primary"], table td[class*="text-primary"] * {
-  color: #123C69 !important;
-  font-weight: 700 !important;
-}
-
-/* CỘT GIÁ THU VỀ (Các cột giá thu về / Net rate): Xanh Đen Slate dịu rõ nét (#334155) */
-table td:not([class*="font-bold"]):not(.font-bold) {
+/* CỘT GIÁ THU VỀ: Màu Xanh Đen Slate (#334155) */
+table td:nth-child(5), table td:nth-child(5) *,
+table td:nth-child(7), table td:nth-child(7) *,
+table td:nth-child(9), table td:nth-child(9) *,
+table td:nth-child(11), table td:nth-child(11) *,
+table td:nth-child(13), table td:nth-child(13) * {
   color: #334155 !important;
+  font-weight: 500 !important;
 }
 
 /* ==========================================================
-   5. TIÊU ĐỀ "GIAI ĐOẠN ÁP DỤNG", LABELS & POPOVER
+   5. LABELS, CHECKBOX & TIÊU ĐỀ PHỤ
    ========================================================== */
-/* Bắt chính xác tiêu đề phụ Giai đoạn áp dụng */
 h1, h2, h3, h4, h5, h6, 
 .font-bold, .font-semibold,
 [class*="text-orange-"], [class*="text-amber-"],
-*:has(> svg) > span,
-*:has(> svg) {
+*:has(> svg) > span, *:has(> svg) {
   color: #123C69 !important;
 }
 
-/* Checkbox & Nhãn chọn */
-label, label *,
-[class*="checkbox"] + label,
-.items-center label {
+label, label *, [class*="checkbox"] + label, .items-center label {
   color: #0f172a !important;
   font-weight: 500 !important;
 }
 
-/* Popover / Dropdown Menu Portal */
 div[data-radix-popper-content-wrapper] *,
 div[role="dialog"] *,
 div[class*="popover-content"] * {
@@ -179,7 +185,7 @@ button.bg-primary, button[type="submit"], [class*="bg-primary"] {
 }
 
 /* ==========================================================
-   7. LỊCH & MÀU BADGE TRẠNG THÁI
+   7. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU
    ========================================================== */
 .rdp-day_outside, .day-outside, button[name="day"].opacity-50 {
   background-color: #e2e8f0 !important;
