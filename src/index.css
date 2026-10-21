@@ -218,38 +218,38 @@ svg, svg * {
   color: inherit;
 }
 /* ==========================================================
-   FIX DỨT ĐIỂM COLOR DROPDOWN MENU TẢI FILE MẪU (0 TOKEN AI)
+   FORCE OVERRIDE: DROPDOWN MENU TẢI FILE MẪU (0 TOKEN AI)
    ========================================================== */
 
-/* Ép tất cả các thẻ nội dung nằm trong Popper/Dropdown/Select Portal */
-[data-radix-popper-content-wrapper] *,
-[data-radix-menu-content] *,
-[role="menu"] *,
-[role="menuitem"] *,
-[class*="DropdownMenu"] *,
-[class*="popover-content"] * {
-  color: #123C69 !important; /* Xanh Navy đậm rõ nét */
-  font-weight: 600 !important;
+/* 1. Đè trực tiếp vào container Radix Portal */
+body > [data-radix-popper-content-wrapper],
+body [role="menu"],
+body [role="menuitem"],
+body [class*="DropdownMenuContent"],
+body [class*="DropdownMenuItem"] {
+  background-color: #ffffff !important;
+  border: 1px solid #BAB2B5 !important;
+  z-index: 999999 !important;
 }
 
-/* Đảm bảo icon SVG đi kèm cũng đổi màu Xanh Navy */
-[data-radix-popper-content-wrapper] svg,
-[role="menuitem"] svg {
-  color: #123C69 !important;
+/* 2. Đè màu chữ & icon bên trong Menu Item (bất kể class Tailwind hardcode nào) */
+body [role="menuitem"] *,
+body [role="option"] *,
+body [class*="DropdownMenuItem"] *,
+body [class*="DropdownMenuItem"] span,
+body [class*="DropdownMenuItem"] svg {
+  color: #123C69 !important; /* Xanh Navy đầm nét */
   stroke: #123C69 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
 }
 
-/* Hiệu ứng rê chuột vào Menu Item (Hover) */
-[role="menuitem"]:hover,
-[role="menuitem"]:hover *,
-[class*="DropdownMenuItem"]:hover,
-[class*="DropdownMenuItem"]:hover * {
+/* 3. Hiệu ứng Hover đổi màu nổi bật */
+body [role="menuitem"]:hover,
+body [role="menuitem"]:hover *,
+body [class*="DropdownMenuItem"]:hover,
+body [class*="DropdownMenuItem"]:hover * {
   background-color: #EEE2DC !important;
-  color: #AC3B61 !important; /* Magenta nhấn nổi bật */
-}
-
-[role="menuitem"]:hover svg,
-[class*="DropdownMenuItem"]:hover svg {
-  color: #AC3B61 !important;
+  color: #AC3B61 !important; /* Magenta */
   stroke: #AC3B61 !important;
 }
