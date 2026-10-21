@@ -9,6 +9,9 @@ import {
   CheckCircle2,
   MinusCircle,
   Save,
+  Clock,
+  CalendarRange,
+  CalendarDays,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRoomTypes } from '@/lib/useRoomTypes';
@@ -102,6 +105,11 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Date range + source filter for Lead Time / LOS analytics
+  const [analyticsFrom, setAnalyticsFrom] = useState('');
+  const [analyticsTo, setAnalyticsTo] = useState('');
+  const [analyticsSource, setAnalyticsSource] = useState('all');
+
   // Load inventory config
   const loadInventory = useCallback(async () => {
     if (!hotelId) {
@@ -126,21 +134,17 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
     setInventoryDraft(draftMap);
   }, [hotelId, roomTypes]);
 
-  // Load pickup records for the next 30 days (arrival_date based)
+  // Load all pickup records (date-range filtering happens client-side for analytics)
   const loadRecords = useCallback(async () => {
     if (!hotelId) {
       setRecords([]);
       return;
     }
     setLoading(true);
-    const today = toISODate(new Date());
-    const end30 = toISODate(new Date(Date.now() + 30 * 86400000));
     const { data } = await supabase
       .from('pickup_records')
       .select('*')
       .eq('hotel_id', hotelId)
-      .gte('arrival_date', today)
-      .lte('arrival_date', end30)
       .order('arrival_date', { ascending: true });
     setRecords((data as PickupRecord[]) || []);
     setLoading(false);
@@ -192,9 +196,15 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
     setSavingInventory(false);
   };
 
-  // Build 30-day arrival matrix
+  // Build 30-day arrival matrix (from full records set, filtered to next 30 days)
+  const next30Start = useMemo(() => toISODate(new Date()), []);
+  const next30End = useMemo(() => toISODate(new Date(Date.now() + 30 * 86400000)), []);
+  const next30Records = useMemo(
+    () => records.filter((r) => r.arrival_date && r.arrival_date >= next30Start && r.arrival_date <= next30End),
+    [records, next30Start, next30End],
+  );
+
   const dayCells = useMemo<DayCellData[]>(() => {
-    const todayISO = toISODate(new Date());
     const now = new Date();
     const cut24h = new Date(now.getTime() - 24 * 3600 * 1000);
 
@@ -202,7 +212,7 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
     for (let i = 0; i < 30; i++) {
       const d = new Date(now.getTime() + i * 86400000);
       const dateISO = toISODate(d);
-      const dayRecs = records.filter((r) => r.arrival_date === dateISO);
+      const dayRecs = next30Records.filter((r) => r.arrival_date === dateISO);
       const confirmed = dayRecs.filter((r) => r.status !== 'Cancelled');
       const cancelled = dayRecs.filter((r) => r.status === 'Cancelled');
 
@@ -275,14 +285,14 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
       });
     }
     return cells;
-  }, [records, roomTypes, inventory, totalRooms, manualSold]);
+  }, [next30Records, roomTypes, inventory, totalRooms, manualSold]);
 
   // Source breakdown
   const sourceBreakdown = useMemo(() => {
-    const confirmed = records.filter((r) => r.status !== 'Cancelled');
+    const confirmed = next30Records.filter((r) => r.status !== 'Cancelled');
     const totalRNs = confirmed.reduce((s, r) => s + roomNights(r), 0);
     const map = new Map<string, { rns: number; bookings: number; cancelRns: number; totalBookings: number }>();
-    for (const r of records) {
+    for (const r of next30Records) {
       const src = r.source || 'Không xác định';
       const cur = map.get(src) || { rns: 0, bookings: 0, cancelRns: 0, totalBookings: 0 };
       cur.totalBookings += 1;
@@ -305,11 +315,11 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
         contribution: totalRNs > 0 ? (v.rns / totalRNs) * 100 : 0,
       }))
       .sort((a, b) => b.rns - a.rns);
-  }, [records]);
+  }, [next30Records]);
 
   // Room type performance table
   const roomTypePerformance = useMemo(() => {
-    const confirmed = records.filter((r) => r.status !== 'Cancelled');
+    const confirmed = next30Records.filter((r) => r.status !== 'Cancelled');
     return roomTypes
       .map((rt) => {
         const rtRecs = confirmed.filter(
@@ -324,18 +334,111 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
         return { roomType: rt.name, sold, rns, revenue, adr, capacity: cap, occupancy };
       })
       .sort((a, b) => b.rns - a.rns);
-  }, [records, roomTypes, inventory]);
+  }, [next30Records, roomTypes, inventory]);
 
   // Cancellation metrics
   const cancelMetrics = useMemo(() => {
-    const confirmed = records.filter((r) => r.status !== 'Cancelled');
-    const cancelled = records.filter((r) => r.status === 'Cancelled');
+    const confirmed = next30Records.filter((r) => r.status !== 'Cancelled');
+    const cancelled = next30Records.filter((r) => r.status === 'Cancelled');
     const confirmedRNs = confirmed.reduce((s, r) => s + roomNights(r), 0);
     const cancelRNs = cancelled.reduce((s, r) => s + roomNights(r), 0);
     const totalRNs = confirmedRNs + cancelRNs;
     const cancelRate = totalRNs > 0 ? (cancelRNs / totalRNs) * 100 : 0;
     return { confirmedRNs, cancelRNs, totalRNs, cancelRate, cancelCount: cancelled.length };
+  }, [next30Records]);
+
+  // All sources for analytics filter dropdown
+  const allSources = useMemo(() => {
+    const set = new Set<string>();
+    records.forEach((r) => r.source && set.add(r.source));
+    return Array.from(set).sort();
   }, [records]);
+
+  // ============ LEAD TIME & LOS ANALYTICS (date-range + source filtered) ============
+  const analyticsRecords = useMemo(() => {
+    return records.filter((r) => {
+      if (!r.arrival_date) return false;
+      if (analyticsFrom && r.arrival_date < analyticsFrom) return false;
+      if (analyticsTo && r.arrival_date > analyticsTo) return false;
+      if (analyticsSource !== 'all' && (r.source || '') !== analyticsSource) return false;
+      return true;
+    });
+  }, [records, analyticsFrom, analyticsTo, analyticsSource]);
+
+  const leadTimeMetrics = useMemo(() => {
+    const confirmed = analyticsRecords.filter((r) => r.status !== 'Cancelled');
+    const pickupLeadDays: number[] = [];
+    for (const r of confirmed) {
+      if (!r.arrival_date || !r.booked_datetime) continue;
+      const booked = parseBookedDateTime(r.booked_datetime);
+      if (!booked) continue;
+      const arrival = new Date(r.arrival_date + 'T00:00:00');
+      const diff = Math.round((arrival.getTime() - booked.getTime()) / 86400000);
+      if (diff >= 0) pickupLeadDays.push(diff);
+    }
+    const avgPickupLead = pickupLeadDays.length > 0
+      ? pickupLeadDays.reduce((s, d) => s + d, 0) / pickupLeadDays.length
+      : 0;
+
+    const cancelled = analyticsRecords.filter((r) => r.status === 'Cancelled');
+    const cancelLeadDays: number[] = [];
+    for (const r of cancelled) {
+      if (!r.arrival_date || !r.cancel_date) continue;
+      const cancelDt = new Date(r.cancel_date + 'T00:00:00');
+      if (isNaN(cancelDt.getTime())) continue;
+      const arrival = new Date(r.arrival_date + 'T00:00:00');
+      const diff = Math.round((arrival.getTime() - cancelDt.getTime()) / 86400000);
+      if (diff >= 0) cancelLeadDays.push(diff);
+    }
+    const avgCancelLead = cancelLeadDays.length > 0
+      ? cancelLeadDays.reduce((s, d) => s + d, 0) / cancelLeadDays.length
+      : 0;
+
+    const buckets = [
+      { label: '0 - 3 ngày', min: 0, max: 3 },
+      { label: '4 - 6 ngày', min: 4, max: 6 },
+      { label: '7 - 14 ngày', min: 7, max: 14 },
+      { label: '14 - 30 ngày', min: 14, max: 30 },
+      { label: '30+ ngày', min: 31, max: Infinity },
+    ];
+    let dominant = '—';
+    let maxCount = 0;
+    for (const b of buckets) {
+      const count = pickupLeadDays.filter((d) => d >= b.min && d <= b.max).length;
+      if (count > maxCount) { maxCount = count; dominant = b.label; }
+    }
+
+    return {
+      avgPickupLead,
+      avgCancelLead,
+      dominantWindow: dominant,
+      pickupCount: pickupLeadDays.length,
+      cancelCount: cancelLeadDays.length,
+    };
+  }, [analyticsRecords]);
+
+  const losMetrics = useMemo(() => {
+    const valid = analyticsRecords.filter((r) => r.arrival_date && r.departure_date);
+    const losValues: number[] = [];
+    for (const r of valid) {
+      const arr = new Date((r.arrival_date as string) + 'T00:00:00');
+      const dep = new Date((r.departure_date as string) + 'T00:00:00');
+      const diff = Math.round((dep.getTime() - arr.getTime()) / 86400000);
+      if (diff > 0) losValues.push(diff);
+    }
+    const total = losValues.length;
+    const avgLos = total > 0 ? losValues.reduce((s, d) => s + d, 0) / total : 0;
+    const oneNight = losValues.filter((d) => d === 1).length;
+    const twoPlus = losValues.filter((d) => d >= 2).length;
+    return {
+      avgLos,
+      total,
+      oneNightPct: total > 0 ? (oneNight / total) * 100 : 0,
+      twoPlusPct: total > 0 ? (twoPlus / total) * 100 : 0,
+      oneNightCount: oneNight,
+      twoPlusCount: twoPlus,
+    };
+  }, [analyticsRecords]);
 
   const draftTotalRooms = useMemo(() => {
     let sum = 0;
@@ -420,6 +523,126 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
         </Card>
       ) : (
         <>
+          {/* ============ LEAD TIME & LOS ANALYTICS WITH DATE FILTER ============ */}
+          <Card className="p-4 space-y-4">
+            <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm border-b border-navy-50 pb-2">
+              <CalendarRange size={16} className="text-gold-600" />
+              Phân tích Lead Time & LOS (Thời gian đặt trước & Độ dài lưu trú)
+            </div>
+
+            {/* Date range + source filter */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+              <Field label="Từ ngày (Arrival)">
+                <input
+                  type="date"
+                  value={analyticsFrom}
+                  onChange={(e) => setAnalyticsFrom(e.target.value)}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+              <Field label="Đến ngày (Arrival)">
+                <input
+                  type="date"
+                  value={analyticsTo}
+                  onChange={(e) => setAnalyticsTo(e.target.value)}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                />
+              </Field>
+              <Field label="Kênh bán (OTA)">
+                <select
+                  value={analyticsSource}
+                  onChange={(e) => setAnalyticsSource(e.target.value)}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                >
+                  <option value="all">Tất cả kênh</option>
+                  {allSources.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </Field>
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setAnalyticsFrom(''); setAnalyticsTo(''); setAnalyticsSource('all'); }}
+                  className="text-sm text-navy-600 hover:text-navy-800 font-medium underline"
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            </div>
+
+            {/* Two metric cards side-by-side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Card 1: Lead Time Analysis */}
+              <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
+                <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+                  <Clock size={16} className="text-gold-600" />
+                  Thời gian đặt phòng trước (Lead Time Analysis)
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-navy-50 pb-2">
+                    <span className="text-sm text-navy-600 font-medium">Lead Time Trung Bình (Pickup)</span>
+                    <span className="text-lg font-semibold mono-num text-navy-800">
+                      {leadTimeMetrics.pickupCount > 0 ? `${leadTimeMetrics.avgPickupLead.toFixed(1)} ngày` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-navy-50 pb-2">
+                    <span className="text-sm text-navy-600 font-medium">Lead Time Hủy Trung Bình</span>
+                    <span className="text-lg font-semibold mono-num text-red-600">
+                      {leadTimeMetrics.cancelCount > 0 ? `${leadTimeMetrics.avgCancelLead.toFixed(1)} ngày` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-navy-600 font-medium">Cửa Sổ Đặt Phòng Phổ Biến</span>
+                    <span className="text-base font-semibold text-gold-700 bg-gold-50 border border-gold-200 rounded-lg px-2.5 py-1">
+                      {leadTimeMetrics.dominantWindow}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-navy-400">
+                  Dựa trên {leadTimeMetrics.pickupCount} booking confirmed &amp; {leadTimeMetrics.cancelCount} booking đã hủy.
+                </div>
+              </div>
+
+              {/* Card 2: LOS Analysis */}
+              <div className="rounded-xl border border-navy-200 bg-white p-4 space-y-3">
+                <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+                  <CalendarDays size={16} className="text-gold-600" />
+                  Độ dài lưu trú (Length of Stay Analysis)
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-navy-50 pb-2">
+                    <span className="text-sm text-navy-600 font-medium">LOS Trung Bình</span>
+                    <span className="text-lg font-semibold mono-num text-navy-800">
+                      {losMetrics.total > 0 ? `${losMetrics.avgLos.toFixed(1)} đêm` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-navy-50 pb-2">
+                    <span className="text-sm text-navy-600 font-medium">Tỷ Lệ Khách Ở 1 Đêm</span>
+                    <span className="text-lg font-semibold mono-num text-navy-800">
+                      {losMetrics.total > 0 ? `${losMetrics.oneNightPct.toFixed(0)}%` : '—'}
+                      <span className="text-xs font-normal text-navy-400 ml-1.5">({losMetrics.oneNightCount} booking)</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-navy-600 font-medium">Tỷ Lệ Khách Ở 2+ Đêm</span>
+                    <span className="text-lg font-semibold mono-num text-emerald-700">
+                      {losMetrics.total > 0 ? `${losMetrics.twoPlusPct.toFixed(0)}%` : '—'}
+                      <span className="text-xs font-normal text-navy-400 ml-1.5">({losMetrics.twoPlusCount} booking)</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-navy-400">
+                  Dựa trên {losMetrics.total} booking có ngày đến &amp; đi hợp lệ.
+                </div>
+              </div>
+            </div>
+
+            {analyticsRecords.length === 0 && (
+              <div className="text-sm text-navy-400 text-center py-2">
+                Không có dữ liệu trong khoảng ngày đã chọn. Hãy chọn lại hoặc xóa bộ lọc.
+              </div>
+            )}
+          </Card>
           {/* ============ 30-DAY ARRIVAL CALENDAR GRID ============ */}
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
