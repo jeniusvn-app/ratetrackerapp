@@ -217,3 +217,39 @@ button[aria-selected="true"], .rdp-day_selected {
 svg, svg * {
   color: inherit;
 }
+/* ==========================================================
+   FIX DỨT ĐIỂM MENU DROPDOWN TẢI FILE MẪU (0 TOKEN)
+   ========================================================== */
+
+/* Ép tất cả khung Dropdown Menu Item & Icon về màu Xanh Navy đậm nét */
+[role="menuitem"],
+[role="option"],
+[class*="DropdownMenuItem"],
+[class*="dropdown-menu-item"],
+div[data-radix-collection-item] {
+  color: #123C69 !important;
+  font-weight: 600 !important;
+}
+
+/* Ép màu cho chữ và Icon bên trong menu */
+[role="menuitem"] *,
+[role="option"] *,
+[class*="DropdownMenuItem"] *,
+div[data-radix-collection-item] * {
+  color: #123C69 !important;
+  font-weight: 600 !important;
+}
+
+/* Hiệu ứng khi rê chuột vào (Hover) */
+[role="menuitem"]:hover,
+[role="option"]:hover,
+[class*="DropdownMenuItem"]:hover,
+div[data-radix-collection-item]:hover {
+  background-color: #EEE2DC !important;
+  color: #AC3B61 !important;
+}
+
+[role="menuitem"]:hover *,
+[role="option"]:hover * {
+  color: #AC3B61 !important;
+}
