@@ -218,41 +218,35 @@ svg, svg * {
   color: inherit;
 }
 /* ==========================================================
-   MINIRMS - ULTIMATE FORCE OVERRIDE DROPDOWN MENU (0 TOKEN)
+   FORCE OVERRIDE: CẢ 2 ITEM TRONG DROPDOWN TẢI FILE MẪU
    ========================================================== */
 
-/* 1. Ép màu chữ và icon cho tất cả các phần tử có chữ "File báo cáo" */
-[role="menuitem"],
-[role="option"],
-div[data-radix-collection-item],
-.DropdownMenuItem,
-[class*="DropdownMenuItem"] {
+/* 1. Ép background trắng cho khung Popup Menu */
+div[data-radix-popper-content-wrapper] [role="menu"],
+div[data-radix-popper-content-wrapper] [class*="DropdownMenuContent"] {
+  background-color: #ffffff !important;
+  border: 1px solid #BAB2B5 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 2. Đè màu Xanh Navy đậm cho CẢ 2 DÒNG (Pickup & Cancellation) và Icon SVG */
+div[data-radix-popper-content-wrapper] [role="menuitem"],
+div[data-radix-popper-content-wrapper] [role="menuitem"] *,
+div[data-radix-popper-content-wrapper] [class*="DropdownMenuItem"],
+div[data-radix-popper-content-wrapper] [class*="DropdownMenuItem"] * {
   color: #123C69 !important;
   fill: #123C69 !important;
   stroke: #123C69 !important;
+  -webkit-text-fill-color: #123C69 !important; /* Triệt hạ Inline Style màu cam của Webkit */
   font-weight: 600 !important;
   opacity: 1 !important;
-  filter: none !important;
 }
 
-/* 2. Đè triệt hạ vào toàn bộ thẻ con (span, svg, p, div) bên trong menu */
-[role="menuitem"] *,
-[role="option"] *,
-div[data-radix-collection-item] *,
-[class*="DropdownMenuItem"] * {
-  color: #123C69 !important;
-  fill: #123C69 !important;
-  stroke: #123C69 !important;
-  font-weight: 600 !important;
-  opacity: 1 !important;
-  -webkit-text-fill-color: #123C69 !important; /* Đè màu chữ Safari/Webkit inline */
-}
-
-/* 3. Hiệu ứng rê chuột (Hover) đổi sang màu nhấn Magenta */
-[role="menuitem"]:hover,
-[role="menuitem"]:hover *,
-[class*="DropdownMenuItem"]:hover,
-[class*="DropdownMenuItem"]:hover * {
+/* 3. Hiệu ứng Hover rê chuột vào từng dòng */
+div[data-radix-popper-content-wrapper] [role="menuitem"]:hover,
+div[data-radix-popper-content-wrapper] [role="menuitem"]:hover *,
+div[data-radix-popper-content-wrapper] [class*="DropdownMenuItem"]:hover,
+div[data-radix-popper-content-wrapper] [class*="DropdownMenuItem"]:hover * {
   background-color: #EEE2DC !important;
   color: #AC3B61 !important;
   fill: #AC3B61 !important;
