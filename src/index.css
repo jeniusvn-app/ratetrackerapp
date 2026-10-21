@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - RADIX POPOVER & MASTER UI FIX
-   Author: Vibe Coding Helper (0 Token Cost)
+   MINIRMS / RATETRACKER AI - ULTIMATE FORCE CONTRAST FIX
+   Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
-/* 1. PALETTE MÀU CHÍNH & CAN THIỆP BIẾN MÀU HỘP CHỌN (POPOVER) */
+/* 1. PALETTE MÀU CHÍNH & BIẾN MÀU HỘP CHỌN */
 :root {
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
@@ -49,7 +49,6 @@ body {
   --color-navy: #123C69;
   --color-magenta: #AC3B61;
 
-  /* Sửa gốc rễ biến màu chữ Popover/Dropdown của Shadcn UI */
   --popover-foreground: #0f172a !important;
   --muted-foreground: #334155 !important;
 }
@@ -65,7 +64,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (ACTIVE STATE RÕ RÀNG) */
+/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -91,45 +90,40 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. CAN THIỆP TRIỆT ĐỂ MENU HỘP CHỌN DROPDOWN / POPOVER
+   4. ĐÈ TRIỆT ĐỂ MỌI CLASS TAILWIND HARDCODE TRONG POPOVER
    ========================================================== */
-/* Khung nền Popover / Dropdown Portal */
-[data-radix-popper-content-wrapper],
-[role="dialog"],
-[role="listbox"],
-[class*="popover-content"],
-[class*="DropdownMenuContent"],
-[class*="SelectContent"] {
+/* Bắt tất cả khung Popover/Dropdown Portal */
+div[data-radix-popper-content-wrapper],
+div[role="dialog"],
+div[role="listbox"],
+div[class*="popover-content"],
+div[class*="DropdownMenuContent"] {
   background-color: #ffffff !important;
   border: 1px solid #BAB2B5 !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
   z-index: 99999 !important;
 }
 
-/* Bắt chính xác từng dòng chữ/checkbox (Kasen, Furin, Nihoma...) bên trong Hộp chọn */
-[data-radix-popper-content-wrapper] *,
-[role="dialog"] *,
-[role="listbox"] *,
-[class*="popover-content"] *,
-[class*="DropdownMenu"] *,
-[data-radix-collection-item],
-.popover-content span,
-.popover-content label {
-  color: #0f172a !important; /* Ép về màu đen xám đậm nét 100% */
+/* Bắt từng thẻ bất kỳ bên trong Popover và đè sạch các class text-orange, text-amber... */
+div[data-radix-popper-content-wrapper] *,
+div[role="dialog"] *,
+div[class*="popover-content"] *,
+div[class*="popover-content"] [class*="text-"],
+div[class*="popover-content"] label,
+div[class*="popover-content"] span {
+  color: #0f172a !important; /* Đen đậm rõ nét 100% */
   font-weight: 500 !important;
 }
 
-/* Hiệu ứng khi rê chuột vào item trong Popover */
-[role="option"]:hover,
-[role="menuitem"]:hover,
-[class*="popover-content"] label:hover,
-[data-radix-collection-item]:hover {
+/* Hover item trong Popover */
+div[class*="popover-content"] label:hover,
+div[class*="popover-content"] div:hover {
   background-color: #EEE2DC !important;
   color: #123C69 !important;
 }
 
 /* ==========================================================
-   5. BẢNG DỮ LIỆU & TIÊU ĐỀ (TABLE & HEADERS)
+   5. BẢNG DỮ LIỆU & TIÊU ĐỀ
    ========================================================== */
 table th {
   color: #123C69 !important;
@@ -149,7 +143,6 @@ table td [class*="font-bold"] {
   font-weight: 700 !important;
 }
 
-/* Label tiêu đề form */
 form label, .card label {
   color: #123C69 !important;
   font-weight: 600 !important;
