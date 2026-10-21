@@ -37,11 +37,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - FULL CONTRAST & UI FIX
+   MINIRMS / RATETRACKER AI - FIX CHỮ TÀNG HÌNH & TĂNG CONTRAST
    Author: Vibe Coding Helper (0 Token Cost)
    ========================================================== */
 
-/* 1. PALETTE MÀU CHÍNH */
+/* 1. PALETTE MÀU CHÍNH (MODERN PALETTE) */
 :root {
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
@@ -86,43 +86,62 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. CHỮ RÕ NÉT VÀ HIỂN THỊ ĐẦY ĐỦ (BỎ IN ĐẬM THÔ, HIỆN ĐEN SẮC NÉT) */
-p, span, label, td, div, input, select, textarea {
-  font-weight: 400;
+/* 4. TĂNG ĐỘ TƯƠNG PHẢN CHO LABELS, CHECKBOX & TIÊU ĐỀ PHỤ */
+/* Ép màu Xanh Navy đầm cho các tiêu đề mục (Loại phòng áp dụng, Giai đoạn áp dụng...) */
+div, label, span, p {
+  color: #0f172a;
 }
 
-/* Ép các cột Ngày, Thứ, Label, Dòng Chế độ xem hiển thị màu tối rõ nét */
-td, 
-[class*="text-orange-"], 
-[class*="text-amber-"], 
-[class*="text-yellow-"],
-[class*="text-muted-foreground"] {
-  color: #1e293b !important; /* Đen xám đầm nét */
+/* Tiêu đề nhóm & Label Checkbox nổi bật rõ nét */
+.text-primary,
+[class*="text-orange-300"],
+[class*="text-orange-200"],
+[class*="text-amber-300"],
+[class*="text-amber-200"],
+label, 
+.font-medium, 
+.font-semibold {
+  color: #123C69 !important; /* Xanh Navy đầm tính */
+  font-weight: 600 !important;
 }
 
-/* Tiêu đề & Cột nổi bật dùng màu Xanh Navy */
-h1, h2, h3, h4, h5, h6, th, .font-bold, .font-semibold {
+/* Nội dung danh sách loại phòng (Superior King, Deluxe...) */
+[class*="space-y"] label,
+[class*="grid"] label,
+.items-center span,
+.items-center label {
+  color: #1e293b !important; /* Đen xám rõ nét 100% */
+  font-weight: 500 !important;
+}
+
+/* 5. NÚT BẤM "TẤT CẢ LOẠI PHÒNG" & NÚT PHỤ */
+button.border-orange-200,
+button.border-amber-200,
+button[class*="border"] {
+  border-color: #123C69 !important;
   color: #123C69 !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
 }
 
-/* 5. KHÔI PHỤC MÀU PHÂN BIỆT CHO CÁC DÒNG GIÁ TRÊN Ô LỊCH */
+button.bg-primary, 
+button[type="submit"],
+[class*="bg-primary"] {
+  background-color: #123C69 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* 6. GIỮ MÀU PHÂN BIỆT CHO CÁC DÒNG GIÁ TRÊN LỊCH & ICON */
 [class*="text-blue-"], [class*="text-sky-"] { color: #123C69 !important; }
 [class*="text-emerald-"], [class*="text-green-"] { color: #059669 !important; }
 [class*="text-purple-"], [class*="text-violet-"] { color: #7c3aed !important; }
 [class*="text-rose-"], [class*="text-red-"] { color: #dc2626 !important; }
 
-/* 6. GIỮ MÀU TỰ NHIÊN CHO ICON SVG & BADGE */
 svg, svg * {
   color: inherit;
 }
 
-[class*="bg-amber-"], [class*="bg-orange-"] {
-  background-color: #fef3c7 !important;
-  color: #92400e !important;
-}
-
-/* 7. KHUNG VIỀN MỜ DỊU MẮT & CARD CONTAINER */
+/* 7. KHUNG VIỀN & CARD */
 input, select, textarea {
   border-color: #BAB2B5 !important;
   border-width: 1px !important;
@@ -143,16 +162,7 @@ table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
   background-color: #ffffff !important;
 }
 
-/* 8. NÚT BẤM CHÍNH & TAB CON */
-button.bg-primary, 
-button[type="submit"],
-[class*="bg-primary"] {
-  background-color: #123C69 !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
-/* 9. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU */
+/* 8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU */
 .rdp-day_outside,
 .day-outside,
 [class*="day-outside"],
