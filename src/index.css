@@ -99,3 +99,37 @@ p, span, label, td, th {
 .text-muted, .text-gray-500 {
   color: #BAB2B5 !important;
 }
+/* ==========================================================
+   LÀM MỜ VÀ NGHỆ THUẬT HÓA ĐƯỜNG VIỀN (BORDER) - 0 TOKEN
+   ========================================================== */
+
+/* 1. Đổi viền các ô Input, Select, Dropdown sang màu Ghi dịu nhẹ (#BAB2B5) */
+input, 
+select, 
+textarea, 
+[class*="border"] {
+  border-color: #BAB2B5 !important;
+  border-width: 1px !important;
+}
+
+/* 2. Giảm độ gắt viền Bảng (Table) & Viền Card lớn */
+table, 
+th, 
+td, 
+.border,
+.bg-white.rounded-xl,
+.bg-white.rounded-2xl {
+  border-color: rgba(186, 178, 181, 0.4) !important; /* Viền xám mờ mượt mà */
+  border-width: 1px !important;
+}
+
+/* 3. Đồ họa đường kẻ ngang ngăn cách các hàng trong bảng nhẹ nhàng */
+table tr {
+  border-bottom: 1px solid rgba(186, 178, 181, 0.3) !important;
+}
+
+/* 4. Giữ nét viền Focus khi người dùng bấm vào ô Select/Input */
+input:focus, select:focus {
+  border-color: #123C69 !important; /* Đổi sang Navy khi đang active */
+  outline: none !important;
+}
