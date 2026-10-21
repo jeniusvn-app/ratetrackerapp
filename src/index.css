@@ -163,3 +163,62 @@ input:focus, select:focus {
 [class*="calendar"] .grid > div {
   border-color: rgba(186, 178, 181, 0.4) !important;
 }
+/* ==========================================================
+   1. KHẮC PHỤC MENU TRÊN HEADER (RÕ RÀNG TRẠNG THÁI ACTIVE)
+   ========================================================== */
+
+/* Trả lại dạng text menu thanh thoát */
+header nav a, 
+header nav button,
+.bg-[#EDC7B7] button {
+  background-color: transparent !important;
+  color: #123C69 !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 6px 14px !important;
+  border-radius: 8px !important;
+}
+
+/* Nổi bật TAB ĐANG CHỌN (Active Page/Tab) bằng nền Navy chữ Trắng */
+header nav a.active,
+header nav button.active,
+header nav [aria-current="page"],
+header nav .bg-white,
+.bg-[#EDC7B7] .bg-white,
+.bg-[#EDC7B7] [data-state="active"] {
+  background-color: #123C69 !important; /* Xanh Navy đậm */
+  color: #ffffff !important;            /* Chữ trắng rõ nét */
+  font-weight: 700 !important;
+}
+
+/* ==========================================================
+   2. KHẮC PHỤC DỨT ĐIỂM CÁC NGÀY NGOÀI THÁNG TRÊN LỊCH
+   ========================================================== */
+
+/* Ép xám nền cho các ngày thuộc tháng trước/tháng sau */
+.rdp-day_outside,
+.day-outside,
+[class*="day-outside"],
+[class*="outside"],
+button[name="day"][aria-selected="false"].opacity-50,
+div[class*="day"]:has(.text-muted-foreground) {
+  background-color: #e2e8f0 !important; /* Xám nhạt Slate-200 */
+  opacity: 0.65 !important;
+}
+
+/* Làm mờ hẳn số ngày ngoài tháng (28, 29, 30, 1...) */
+.rdp-day_outside *,
+.day-outside *,
+[class*="day-outside"] *,
+[class*="outside"] * {
+  color: #94a3b8 !important; /* Chữ xám mờ */
+  font-weight: 400 !important;
+}
+
+/* Giữ ô ngày đang được chọn (Ví dụ ngày 21) nổi bật viền Magenta/Navy */
+button[aria-selected="true"],
+.rdp-day_selected {
+  border: 2px solid #AC3B61 !important;
+  background-color: #ffffff !important;
+}
