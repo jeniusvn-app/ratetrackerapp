@@ -37,8 +37,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MASTER UI & PRICE COLORS FIX
-   Tốn đúng 0 Token AI - Dán thay thế toàn bộ src/index.css
+   MINIRMS / RATETRACKER AI - FULL CONTRAST & UI FIX
+   Author: Vibe Coding Helper (0 Token Cost)
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH */
@@ -53,7 +53,7 @@ body {
 /* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
 body {
   background-color: #EEE2DC !important;
-  color: #1e293b !important;
+  color: #0f172a !important;
   font-weight: 400 !important;
 }
 
@@ -86,30 +86,33 @@ header nav .bg-white,
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
 }
 
-/* 4. CHỮ THƯỜNG KHÔNG IN ĐẬM, ĐỘ NÉT RÕ RÀNG */
+/* 4. CHỮ RÕ NÉT VÀ HIỂN THỊ ĐẦY ĐỦ (BỎ IN ĐẬM THÔ, HIỆN ĐEN SẮC NÉT) */
 p, span, label, td, div, input, select, textarea {
   font-weight: 400;
 }
 
-label, [class*="checkbox"] {
-  color: #0f172a !important;
-  font-weight: 500 !important;
+/* Ép các cột Ngày, Thứ, Label, Dòng Chế độ xem hiển thị màu tối rõ nét */
+td, 
+[class*="text-orange-"], 
+[class*="text-amber-"], 
+[class*="text-yellow-"],
+[class*="text-muted-foreground"] {
+  color: #1e293b !important; /* Đen xám đầm nét */
 }
 
+/* Tiêu đề & Cột nổi bật dùng màu Xanh Navy */
 h1, h2, h3, h4, h5, h6, th, .font-bold, .font-semibold {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* 5. KHÔI PHỤC MÀU SẮC PHÂN BIỆT CHO CÁC DÒNG GIÁ TRÊN Ô LỊCH & BẢNG */
-/* Trả lại màu tự nhiên cho text khi component gán màu riêng */
+/* 5. KHÔI PHỤC MÀU PHÂN BIỆT CHO CÁC DÒNG GIÁ TRÊN Ô LỊCH */
 [class*="text-blue-"], [class*="text-sky-"] { color: #123C69 !important; }
-[class*="text-amber-"], [class*="text-orange-"] { color: #d97706 !important; }
 [class*="text-emerald-"], [class*="text-green-"] { color: #059669 !important; }
 [class*="text-purple-"], [class*="text-violet-"] { color: #7c3aed !important; }
 [class*="text-rose-"], [class*="text-red-"] { color: #dc2626 !important; }
 
-/* 6. GIỮ MÀU TỰ NHIÊN CHO ICON SVG & BADGE (PEAK DAY, BAR...) */
+/* 6. GIỮ MÀU TỰ NHIÊN CHO ICON SVG & BADGE */
 svg, svg * {
   color: inherit;
 }
@@ -140,7 +143,7 @@ table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
   background-color: #ffffff !important;
 }
 
-/* 8. NÚT BẤM CHÍNH */
+/* 8. NÚT BẤM CHÍNH & TAB CON */
 button.bg-primary, 
 button[type="submit"],
 [class*="bg-primary"] {
