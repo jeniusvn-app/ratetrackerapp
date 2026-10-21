@@ -444,8 +444,8 @@ export function LookupCalendarPage() {
                   } ${isToday ? 'ring-2 ring-[#E9967A]' : ''}`}
                 >
                   <div
-                    className={`text-[11px] font-semibold mb-1 ${
-                      inMonth ? (isSaturday ? 'text-amber-700' : 'text-navy-700') : 'text-navy-300'
+                    className={`text-[11px] font-bold mb-1 ${
+                      inMonth ? 'text-slate-900' : 'text-navy-300'
                     }`}
                   >
                     {dayNum}
