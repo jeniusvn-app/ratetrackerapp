@@ -37,12 +37,13 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MATRIX TABLE & FULL CONTRAST FIX
+   MINIRMS / RATETRACKER AI - ABSOLUTE FINAL UI & MATRIX FIX
    Author: Vibe Coding Expert (0 Token Cost)
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
 :root {
+  color-scheme: light !important;
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
   --color-gray: #BAB2B5;
@@ -90,112 +91,70 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. CHUẨN HÓA BẢNG MA TRẬN OTA (MATRIX TABLE)
+   4. CHUẨN HÓA BẢNG MA TRẬN OTA & BẢNG LỊCH GIÁ
    ========================================================== */
-/* Header tiêu đề bảng */
-table th {
+/* Header tiêu đề các cột */
+table th, table th * {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* Đồng bộ toàn bộ chữ nội dung trong bảng về cùng độ dày nét căng (Không bị lúc đậm lúc mảnh) */
-table td, 
-table td span, 
-table td div {
-  font-weight: 500 !important;
-  color: #1e293b;
+/* Ép toàn bộ ô nội dung trong bảng về chữ thường đồng nhất nét rõ */
+table td, table td *, table td span, table td div {
+  font-weight: 400 !important;
 }
 
-/* Tên loại phòng & Gói giá */
-table td:first-child,
-table td:nth-child(2) {
+/* Tên Loại phòng & Gói giá */
+table td:first-child, table td:first-child *,
+table td:nth-child(2), table td:nth-child(2) * {
   color: #0f172a !important;
   font-weight: 600 !important;
 }
 
-/* CỘT GIÁ BÁN: Màu Xanh Navy Đậm (#123C69) */
-table td:has(+ td),
-table td[class*="font-bold"],
-table td:nth-child(4),
-table td:nth-child(6),
-table td:nth-child(8),
-table td:nth-child(10),
-table td:nth-child(12) {
+/* CỘT GIÁ BÁN (Tất cả các cột chứa Giá bán): Xanh Navy đậm nét (#123C69) */
+table td.font-bold, table td.font-bold *,
+table td[class*="font-bold"], table td[class*="font-bold"] *,
+table td[class*="text-blue"], table td[class*="text-blue"] *,
+table td[class*="text-primary"], table td[class*="text-primary"] * {
   color: #123C69 !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
 }
 
-/* CỘT GIÁ THU VỀ: Đổi sang màu Xanh Xám Slate Dịu (#334155) phân biệt rõ ràng */
-table td:nth-child(5),
-table td:nth-child(7),
-table td:nth-child(9),
-table td:nth-child(11),
-table td:nth-child(13) {
+/* CỘT GIÁ THU VỀ (Các cột giá thu về / Net rate): Xanh Đen Slate dịu rõ nét (#334155) */
+table td:not([class*="font-bold"]):not(.font-bold) {
   color: #334155 !important;
-  font-weight: 500 !important;
 }
 
 /* ==========================================================
-   5. SỬA DỨT ĐIỂM TIÊU ĐỀ PHỤ & LABELS CHECKBOX
+   5. TIÊU ĐỀ "GIAI ĐOẠN ÁP DỤNG", LABELS & POPOVER
    ========================================================== */
+/* Bắt chính xác tiêu đề phụ Giai đoạn áp dụng */
 h1, h2, h3, h4, h5, h6, 
 .font-bold, .font-semibold,
-[class*="text-orange-"], 
-[class*="text-amber-"],
-div:has(> svg) span,
-div:has(> svg) {
-  color: #123C69 !important;
-  font-weight: 700 !important;
-}
-
-div:has(> svg) svg {
+[class*="text-orange-"], [class*="text-amber-"],
+*:has(> svg) > span,
+*:has(> svg) {
   color: #123C69 !important;
 }
 
-label, 
-label span,
+/* Checkbox & Nhãn chọn */
+label, label *,
 [class*="checkbox"] + label,
-[class*="space-y"] label,
-[class*="grid"] label,
-.items-center label,
-.items-center span {
+.items-center label {
   color: #0f172a !important;
   font-weight: 500 !important;
 }
 
-button.border-orange-200,
-button.border-amber-200,
-button[class*="border"] {
-  border-color: #123C69 !important;
-  color: #123C69 !important;
-  font-weight: 600 !important;
-}
-
-/* ==========================================================
-   6. POPOVER & DROPDOWN MENU PORTAL
-   ========================================================== */
-div[data-radix-popper-content-wrapper],
-div[role="dialog"],
-div[role="listbox"],
-div[class*="popover-content"],
-div[class*="DropdownMenuContent"] {
-  background-color: #ffffff !important;
-  border: 1px solid #BAB2B5 !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
-  z-index: 99999 !important;
-}
-
+/* Popover / Dropdown Menu Portal */
 div[data-radix-popper-content-wrapper] *,
 div[role="dialog"] *,
-div[class*="popover-content"] *,
-div[class*="popover-content"] label,
-div[class*="popover-content"] span {
+div[class*="popover-content"] * {
   color: #0f172a !important;
   font-weight: 500 !important;
 }
 
 /* ==========================================================
-   7. INPUT, SELECT & BUTTONS
+   6. INPUT, SELECT & BUTTONS
    ========================================================== */
 input, select, textarea, [role="combobox"] {
   border-color: #BAB2B5 !important;
@@ -203,11 +162,6 @@ input, select, textarea, [role="combobox"] {
   background-color: #ffffff !important;
   color: #0f172a !important;
   font-weight: 500 !important;
-}
-
-input:focus, select:focus {
-  border-color: #123C69 !important;
-  outline: none !important;
 }
 
 table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
@@ -218,45 +172,28 @@ table, th, td, .border, .border-dashed, [class*="rounded-xl"] {
   background-color: #ffffff !important;
 }
 
-button.bg-primary, 
-button[type="submit"],
-[class*="bg-primary"] {
+button.bg-primary, button[type="submit"], [class*="bg-primary"] {
   background-color: #123C69 !important;
   color: #ffffff !important;
   font-weight: 600 !important;
 }
 
 /* ==========================================================
-   8. LỊCH: NGÀY NGOÀI THÁNG XÁM DỊU & MÀU GIÁ
+   7. LỊCH & MÀU BADGE TRẠNG THÁI
    ========================================================== */
-.rdp-day_outside,
-.day-outside,
-[class*="day-outside"],
-[class*="outside"],
-button[name="day"].opacity-50 {
+.rdp-day_outside, .day-outside, button[name="day"].opacity-50 {
   background-color: #e2e8f0 !important;
   opacity: 0.65 !important;
 }
 
-.rdp-day_outside *,
-.day-outside *,
-[class*="day-outside"] *,
-[class*="outside"] *,
-button[name="day"].opacity-50 * {
+.rdp-day_outside *, .day-outside *, button[name="day"].opacity-50 * {
   color: #94a3b8 !important;
-  font-weight: 400 !important;
 }
 
-button[aria-selected="true"],
-.rdp-day_selected {
+button[aria-selected="true"], .rdp-day_selected {
   border: 2px solid #AC3B61 !important;
   background-color: #ffffff !important;
 }
-
-.rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
-.rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
-.rdp [class*="text-purple-"], .rdp [class*="text-violet-"] { color: #7c3aed !important; }
-.rdp [class*="text-rose-"], .rdp [class*="text-red-"] { color: #dc2626 !important; }
 
 svg, svg * {
   color: inherit;
