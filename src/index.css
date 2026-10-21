@@ -37,17 +37,21 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - ABSOLUTE FIX FOR POP OVER & UI
+   MINIRMS / RATETRACKER AI - RADIX POPOVER & MASTER UI FIX
    Author: Vibe Coding Helper (0 Token Cost)
    ========================================================== */
 
-/* 1. PALETTE MÀU CHÍNH (MODERN PALETTE) */
+/* 1. PALETTE MÀU CHÍNH & CAN THIỆP BIẾN MÀU HỘP CHỌN (POPOVER) */
 :root {
   --color-peach: #EDC7B7;
   --color-cream: #EEE2DC;
   --color-gray: #BAB2B5;
   --color-navy: #123C69;
   --color-magenta: #AC3B61;
+
+  /* Sửa gốc rễ biến màu chữ Popover/Dropdown của Shadcn UI */
+  --popover-foreground: #0f172a !important;
+  --muted-foreground: #334155 !important;
 }
 
 /* 2. NỀN TOÀN BỘ ỨNG DỤNG & HEADER BAR */
@@ -61,7 +65,7 @@ header, nav, .bg-header {
   background-color: #EDC7B7 !important;
 }
 
-/* 3. MENU HEADER (RÕ RÀNG ACTIVE STATE) */
+/* 3. MENU HEADER (ACTIVE STATE RÕ RÀNG) */
 header nav a, 
 header nav button,
 .bg-[#EDC7B7] button {
@@ -87,9 +91,9 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. TẬP TRUNG SỬA LỖI POP OVER / MENU DROPDOWN (KASEN, FURIN...)
+   4. CAN THIỆP TRIỆT ĐỂ MENU HỘP CHỌN DROPDOWN / POPOVER
    ========================================================== */
-/* Bắt chính xác Portal Container của Radix UI / Shadcn UI */
+/* Khung nền Popover / Dropdown Portal */
 [data-radix-popper-content-wrapper],
 [role="dialog"],
 [role="listbox"],
@@ -102,20 +106,24 @@ header nav .bg-white,
   z-index: 99999 !important;
 }
 
-/* Ép toàn bộ chữ, label checkbox (Kasen, Furin, Nihoma...) bên trong Popover thành ĐEN XÁM nét 100% */
+/* Bắt chính xác từng dòng chữ/checkbox (Kasen, Furin, Nihoma...) bên trong Hộp chọn */
 [data-radix-popper-content-wrapper] *,
 [role="dialog"] *,
 [role="listbox"] *,
 [class*="popover-content"] *,
-[class*="DropdownMenu"] * {
-  color: #0f172a !important; /* Đen đậm rõ nét */
+[class*="DropdownMenu"] *,
+[data-radix-collection-item],
+.popover-content span,
+.popover-content label {
+  color: #0f172a !important; /* Ép về màu đen xám đậm nét 100% */
   font-weight: 500 !important;
 }
 
-/* Highlight item khi hover hoặc active trong Dropdown */
+/* Hiệu ứng khi rê chuột vào item trong Popover */
 [role="option"]:hover,
 [role="menuitem"]:hover,
-[class*="popover-content"] label:hover {
+[class*="popover-content"] label:hover,
+[data-radix-collection-item]:hover {
   background-color: #EEE2DC !important;
   color: #123C69 !important;
 }
@@ -141,7 +149,7 @@ table td [class*="font-bold"] {
   font-weight: 700 !important;
 }
 
-/* Label ngoài form */
+/* Label tiêu đề form */
 form label, .card label {
   color: #123C69 !important;
   font-weight: 600 !important;
@@ -153,7 +161,7 @@ h1, h2, h3, h4, h5, h6, .font-bold, .font-semibold {
 }
 
 /* ==========================================================
-   6. DÒNG GIÁ TRÊN LỊCH & CÁC BADGE TRẠNG THÁI
+   6. MÀU GIÁ TRÊN LỊCH & BADGE TRẠNG THÁI
    ========================================================== */
 .rdp [class*="text-blue-"], .rdp [class*="text-sky-"] { color: #123C69 !important; }
 .rdp [class*="text-emerald-"], .rdp [class*="text-green-"] { color: #059669 !important; }
