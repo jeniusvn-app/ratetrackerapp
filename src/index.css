@@ -218,38 +218,38 @@ svg, svg * {
   color: inherit;
 }
 /* ==========================================================
-   FIX DỨT ĐIỂM MENU DROPDOWN TẢI FILE MẪU (0 TOKEN)
+   FIX DỨT ĐIỂM COLOR DROPDOWN MENU TẢI FILE MẪU (0 TOKEN AI)
    ========================================================== */
 
-/* Ép tất cả khung Dropdown Menu Item & Icon về màu Xanh Navy đậm nét */
-[role="menuitem"],
-[role="option"],
-[class*="DropdownMenuItem"],
-[class*="dropdown-menu-item"],
-div[data-radix-collection-item] {
-  color: #123C69 !important;
-  font-weight: 600 !important;
-}
-
-/* Ép màu cho chữ và Icon bên trong menu */
+/* Ép tất cả các thẻ nội dung nằm trong Popper/Dropdown/Select Portal */
+[data-radix-popper-content-wrapper] *,
+[data-radix-menu-content] *,
+[role="menu"] *,
 [role="menuitem"] *,
-[role="option"] *,
-[class*="DropdownMenuItem"] *,
-div[data-radix-collection-item] * {
-  color: #123C69 !important;
+[class*="DropdownMenu"] *,
+[class*="popover-content"] * {
+  color: #123C69 !important; /* Xanh Navy đậm rõ nét */
   font-weight: 600 !important;
 }
 
-/* Hiệu ứng khi rê chuột vào (Hover) */
-[role="menuitem"]:hover,
-[role="option"]:hover,
-[class*="DropdownMenuItem"]:hover,
-div[data-radix-collection-item]:hover {
-  background-color: #EEE2DC !important;
-  color: #AC3B61 !important;
+/* Đảm bảo icon SVG đi kèm cũng đổi màu Xanh Navy */
+[data-radix-popper-content-wrapper] svg,
+[role="menuitem"] svg {
+  color: #123C69 !important;
+  stroke: #123C69 !important;
 }
 
+/* Hiệu ứng rê chuột vào Menu Item (Hover) */
+[role="menuitem"]:hover,
 [role="menuitem"]:hover *,
-[role="option"]:hover * {
+[class*="DropdownMenuItem"]:hover,
+[class*="DropdownMenuItem"]:hover * {
+  background-color: #EEE2DC !important;
+  color: #AC3B61 !important; /* Magenta nhấn nổi bật */
+}
+
+[role="menuitem"]:hover svg,
+[class*="DropdownMenuItem"]:hover svg {
   color: #AC3B61 !important;
+  stroke: #AC3B61 !important;
 }
