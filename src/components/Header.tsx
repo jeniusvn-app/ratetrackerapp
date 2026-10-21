@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth, isAdmin, canAccessPuReport, canUploadPuOnly } from '@/auth/AuthContext';
+import { useAuth, isAdmin, canViewCalendar, canEditRates, canManageUsers, canAccessMiniRms } from '@/auth/AuthContext';
 import { Logo } from '@/components/Logo';
 import { Button, Badge } from '@/components/ui';
 import { ChangePasswordModal } from '@/components/ChangePasswordModal';
@@ -35,9 +35,13 @@ export function Header({
   if (!user) return null;
 
   const visibleNav = NAV.filter((n) => {
-    if (!n.restricted) return true;
-    if (n.key === 'pu_report') return canAccessPuReport(user) || canUploadPuOnly(user);
-    return isAdmin(user);
+    if (n.key === 'lookup') return canViewCalendar(user);
+    if (n.key === 'price_list') return true;
+    if (n.key === 'rate_requests') return true;
+    if (n.key === 'update') return canEditRates(user);
+    if (n.key === 'pu_report') return canAccessMiniRms(user);
+    if (n.key === 'admin') return isAdmin(user) || canManageUsers(user);
+    return true;
   });
 
   return (

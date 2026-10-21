@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRoomTypes } from '@/lib/useRoomTypes';
+import { useAuth, canManageInventory } from '@/auth/AuthContext';
 import type { RoomType } from '@/types';
 import { Button, Card, Field, Input, EmptyState, Badge } from '@/components/ui';
 import { formatVND, toISODate, toDMY } from '@/lib/format';
@@ -91,6 +92,8 @@ const STATUS_META: Record<BadgeStatus, { label: string; color: string; bg: strin
 
 export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
   const { roomTypes } = useRoomTypes(hotelId || null);
+  const { user } = useAuth();
+  const canEditInventory = canManageInventory(user);
   const [inventory, setInventory] = useState<Map<string, number>>(new Map());
   const [inventoryDraft, setInventoryDraft] = useState<Map<string, string>>(new Map());
   const [savingInventory, setSavingInventory] = useState(false);
@@ -351,7 +354,7 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
 
         {roomTypes.length === 0 ? (
           <EmptyState message="Chưa có loại phòng cho khách sạn này." />
-        ) : (
+        ) : canEditInventory ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {roomTypes.map((rt: RoomType) => (
@@ -380,6 +383,29 @@ export function MiniRMSAnalytics({ hotelId }: { hotelId: string }) {
                   {invMsg.text}
                 </span>
               )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {roomTypes.map((rt: RoomType) => (
+                <Field key={rt.id} label={rt.name}>
+                  <Input
+                    type="number"
+                    value={inventoryDraft.get(rt.id) ?? '0'}
+                    disabled
+                    onChange={() => {}}
+                    placeholder="0"
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-lg px-3 py-2">
+                <BedDouble size={16} className="text-gold-600" />
+                Tổng sức chứa: {draftTotalRooms} phòng
+              </div>
+              <span className="text-xs text-navy-400">Bạn không có quyền chỉnh sửa cấu hình phòng vật lý.</span>
             </div>
           </>
         )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/auth/AuthContext';
+import { useAuth, canViewNetB2B } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
 import type { DailyRate, Hotel, RoomType } from '@/types';
 import { formatVND, toISODate, toDMY, dateRangeISO } from '@/lib/format';
@@ -21,7 +21,8 @@ interface DayCell {
 }
 
 export function LookupCalendarPage() {
-  const { hotels } = useAuth();
+  const { hotels, user } = useAuth();
+  const showNetB2B = canViewNetB2B(user);
   const [hotelId, setHotelId] = useState<string>('');
   const [roomTypeId, setRoomTypeId] = useState<string>('all');
   const [view, setView] = useState<View>('calendar');
@@ -207,8 +208,8 @@ export function LookupCalendarPage() {
           room_type: '',
           rate_code: '',
           selling_price: '',
-          net_price: '',
-          b2b_price: '',
+          net_price: showNetB2B ? '' : '***',
+          b2b_price: showNetB2B ? '' : '***',
         });
       } else {
         for (const r of filtered) {
@@ -217,14 +218,14 @@ export function LookupCalendarPage() {
             room_type: rtById.get(r.room_type_id)?.name || '',
             rate_code: r.rate_code,
             selling_price: formatVND(Number(r.selling_price)),
-            net_price: formatVND(Number(r.net_price)),
-            b2b_price: r.b2b_price != null ? formatVND(Number(r.b2b_price)) : '',
+            net_price: showNetB2B ? formatVND(Number(r.net_price)) : '***',
+            b2b_price: showNetB2B ? (r.b2b_price != null ? formatVND(Number(r.b2b_price)) : '') : '***',
           });
         }
       }
     }
     return rows;
-  }, [ratesByDate, roomTypeId, rtById, monthStart, monthEnd]);
+  }, [ratesByDate, roomTypeId, rtById, monthStart, monthEnd, showNetB2B]);
 
   // Table view rows
   const tableRows = useMemo(() => {
@@ -392,17 +393,21 @@ export function LookupCalendarPage() {
               <span className="text-navy-400">— Giá bán tham chiếu</span>
             </span>
             <span className="text-navy-200">|</span>
-            <span className="inline-flex items-center gap-1.5 text-xs text-navy-500">
-              <span className="inline-block w-3 h-3 rounded-sm bg-navy-400" />
-              <span className="font-semibold">Net Rate</span>
-              <span className="text-navy-400">— Giá Net</span>
-            </span>
-            <span className="text-navy-200">|</span>
-            <span className="inline-flex items-center gap-1.5 text-xs">
-              <span className="inline-block w-3 h-3 rounded-sm bg-gold-500" />
-              <span className="font-semibold text-gold-600">B2B Rate</span>
-              <span className="text-navy-400">— Giá B2B / Đại lý</span>
-            </span>
+            {showNetB2B && (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs text-navy-500">
+                <span className="inline-block w-3 h-3 rounded-sm bg-navy-400" />
+                <span className="font-semibold">Net Rate</span>
+                <span className="text-navy-400">— Giá Net</span>
+              </span>
+              <span className="text-navy-200">|</span>
+              <span className="inline-flex items-center gap-1.5 text-xs">
+                <span className="inline-block w-3 h-3 rounded-sm bg-gold-500" />
+                <span className="font-semibold text-gold-600">B2B Rate</span>
+                <span className="text-navy-400">— Giá B2B / Đại lý</span>
+              </span>
+            </>
+          )}
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
@@ -450,12 +455,20 @@ export function LookupCalendarPage() {
                       <div className="mono-num text-xs sm:text-sm font-semibold text-navy-800 leading-tight">
                         {formatVND(cell.selling)}
                       </div>
-                      <div className="mono-num text-[10px] sm:text-[11px] text-navy-500 leading-tight">
-                        {formatVND(cell.net)}
-                      </div>
-                      <div className="mono-num text-[10px] sm:text-[11px] text-gold-600 leading-tight">
-                        {cell.b2b !== null ? formatVND(cell.b2b) : '—'}
-                      </div>
+                      {showNetB2B ? (
+                        <>
+                          <div className="mono-num text-[10px] sm:text-[11px] text-navy-500 leading-tight">
+                            {formatVND(cell.net)}
+                          </div>
+                          <div className="mono-num text-[10px] sm:text-[11px] text-gold-600 leading-tight">
+                            {cell.b2b !== null ? formatVND(cell.b2b) : '—'}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mono-num text-[10px] sm:text-[11px] text-navy-300 leading-tight">
+                          Net · B2B: ***
+                        </div>
+                      )}
                       {roomTypeId === 'all' && cell.roomType && (
                         <div className="text-[9px] sm:text-[10px] text-navy-400 truncate mt-0.5">
                           {cell.roomType}
@@ -497,14 +510,14 @@ export function LookupCalendarPage() {
                   <th className="text-left px-4 py-2.5 font-semibold">Loại phòng</th>
                   <th className="text-left px-4 py-2.5 font-semibold">Rate code</th>
                   <th className="text-right px-4 py-2.5 font-semibold">Giá bán</th>
-                  <th className="text-right px-4 py-2.5 font-semibold">Giá net</th>
-                  <th className="text-right px-4 py-2.5 font-semibold">Giá B2B</th>
+                  {showNetB2B && <th className="text-right px-4 py-2.5 font-semibold">Giá net</th>}
+                  {showNetB2B && <th className="text-right px-4 py-2.5 font-semibold">Giá B2B</th>}
                 </tr>
               </thead>
               <tbody>
                 {tableRows.length === 0 && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={showNetB2B ? 6 : 4}>
                       <EmptyState message="Không có dữ liệu giá trong tháng này" />
                     </td>
                   </tr>
@@ -522,12 +535,16 @@ export function LookupCalendarPage() {
                     <td className="px-4 py-2.5 text-right mono-num font-semibold text-navy-800">
                       {r.selling !== null ? formatVND(r.selling) : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-right mono-num text-navy-600">
-                      {r.net !== null ? formatVND(r.net) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-right mono-num text-gold-600">
-                      {r.b2b !== null ? formatVND(r.b2b) : '—'}
-                    </td>
+                    {showNetB2B && (
+                      <td className="px-4 py-2.5 text-right mono-num text-navy-600">
+                        {r.net !== null ? formatVND(r.net) : '—'}
+                      </td>
+                    )}
+                    {showNetB2B && (
+                      <td className="px-4 py-2.5 text-right mono-num text-gold-600">
+                        {r.b2b !== null ? formatVND(r.b2b) : '—'}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

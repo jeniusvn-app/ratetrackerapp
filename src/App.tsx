@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AuthProvider, useAuth, isAdmin, canAccessPuReport, canUploadPuOnly } from '@/auth/AuthContext';
+import { AuthProvider, useAuth, isAdmin, canViewCalendar, canEditRates, canManageUsers, canAccessMiniRms } from '@/auth/AuthContext';
 import { LoginScreen } from '@/components/LoginScreen';
 import { Header, type PageKey } from '@/components/Header';
 import { LookupCalendarPage } from '@/pages/LookupCalendarPage';
@@ -23,12 +23,12 @@ function Shell() {
 
   if (!user) return <LoginScreen />;
 
-  // Guard restricted pages: update/admin require admin; pu_report requires
-  // admin, can_access_pu_report flag, or can_upload_pu_only flag.
-  // Unauthorized users fall back to Lịch.
+  // Guard restricted pages based on granular permissions
   const effectivePage: PageKey =
-    ((page === 'update' || page === 'admin') && !isAdmin(user)) ||
-    (page === 'pu_report' && !canAccessPuReport(user) && !canUploadPuOnly(user))
+    ((page === 'update') && !canEditRates(user)) ||
+    ((page === 'admin') && !isAdmin(user) && !canManageUsers(user)) ||
+    (page === 'pu_report' && !canAccessMiniRms(user)) ||
+    (page === 'lookup' && !canViewCalendar(user))
       ? 'lookup'
       : page;
 
@@ -36,12 +36,12 @@ function Shell() {
     <div className="min-h-screen bg-navy-50/40">
       <Header page={effectivePage} setPage={setPage} />
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-5">
-        {effectivePage === 'lookup' && <LookupCalendarPage />}
+        {effectivePage === 'lookup' && canViewCalendar(user) && <LookupCalendarPage />}
         {effectivePage === 'price_list' && <MasterPriceListPage />}
         {effectivePage === 'rate_requests' && <RateRequestsPage />}
-        {effectivePage === 'update' && isAdmin(user) && <DailyRateUpdatePage />}
-        {effectivePage === 'pu_report' && (canAccessPuReport(user) || canUploadPuOnly(user)) && <PUReportPage />}
-        {effectivePage === 'admin' && isAdmin(user) && <SystemAdminPage />}
+        {effectivePage === 'update' && canEditRates(user) && <DailyRateUpdatePage />}
+        {effectivePage === 'pu_report' && canAccessMiniRms(user) && <PUReportPage />}
+        {effectivePage === 'admin' && (isAdmin(user) || canManageUsers(user)) && <SystemAdminPage />}
       </main>
       <footer className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 text-center text-xs text-navy-300">
         RateTracker AI by Jenius — Hotel Rate Management System

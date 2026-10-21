@@ -18,7 +18,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
-import type { AppUser, Hotel, PriceMatrix, Role, RoomType } from '@/types';
+import type { AppUser, Hotel, PriceMatrix, Role, RoomType, UserPermissions, MiniRmsAccess } from '@/types';
 import {
   Badge,
   Button,
@@ -30,7 +30,7 @@ import {
   Select,
 } from '@/components/ui';
 import { formatVND, normCode } from '@/lib/format';
-import { canAccessFullPuReport } from '@/auth/AuthContext';
+import { canManageInventory, canManageUsers } from '@/auth/AuthContext';
 
 type TabKey = 'hotels' | 'matrix' | 'users';
 
@@ -43,7 +43,13 @@ const TABS: { key: TabKey; label: string; icon: typeof Building2 }[] = [
 type Toast = { kind: 'ok' | 'err' | 'info'; text: string } | null;
 
 export function SystemAdminPage() {
-  const [tab, setTab] = useState<TabKey>('hotels');
+  const { user } = useAuth();
+  const canInv = canManageInventory(user);
+  const canUsr = canManageUsers(user);
+  const visibleTabs = TABS.filter((t) =>
+    t.key === 'users' ? canUsr : canInv,
+  );
+  const [tab, setTab] = useState<TabKey>(visibleTabs[0]?.key ?? 'users');
   const [toast, setToast] = useState<Toast>(null);
 
   useEffect(() => {
@@ -73,7 +79,7 @@ export function SystemAdminPage() {
       </div>
 
       <div className="flex flex-wrap gap-1 bg-white border border-navy-100 rounded-xl p-1 shadow-card">
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
           return (
@@ -93,9 +99,9 @@ export function SystemAdminPage() {
         })}
       </div>
 
-      {tab === 'hotels' && <HotelsTab onToast={setToast} />}
-      {tab === 'matrix' && <MatrixTab onToast={setToast} />}
-      {tab === 'users' && <UsersTab onToast={setToast} />}
+      {tab === 'hotels' && canInv && <HotelsTab onToast={setToast} />}
+      {tab === 'matrix' && canInv && <MatrixTab onToast={setToast} />}
+      {tab === 'users' && canUsr && <UsersTab onToast={setToast} />}
     </div>
   );
 }
@@ -1001,20 +1007,46 @@ interface UserFormState {
   allowed: string[]; // hotel ids or ['*']
   canAccessPuReport: boolean;
   canUploadPuOnly: boolean;
+  permissions: UserPermissions;
 }
 
-type PuPerm = 'full' | 'upload_only' | 'none';
+const DEFAULT_USER_PERMISSIONS: UserPermissions = {
+  calendar: { view: true, edit_rates: false, view_net_b2b: false },
+  mini_rms: 'none',
+  settings: { manage_inventory: false, manage_users: false },
+};
 
-function puPermFromUser(u: AppUser): PuPerm {
-  if (u.role === 'admin' || u.can_access_pu_report === true) return 'full';
-  if (u.can_upload_pu_only === true) return 'upload_only';
-  return 'none';
+function permissionsFromUser(u: AppUser): UserPermissions {
+  if (u.role === 'admin') return { calendar: { view: true, edit_rates: true, view_net_b2b: true }, mini_rms: 'full', settings: { manage_inventory: true, manage_users: true } };
+  if (u.permissions) return u.permissions;
+  const miniRms: MiniRmsAccess = u.can_access_pu_report ? 'full' : u.can_upload_pu_only ? 'data_only' : 'none';
+  return {
+    calendar: { view: true, edit_rates: false, view_net_b2b: false },
+    mini_rms: miniRms,
+    settings: { manage_inventory: false, manage_users: false },
+  };
 }
 
-function puPermLabel(p: PuPerm): string {
-  if (p === 'full') return 'Full quyền PU Report';
-  if (p === 'upload_only') return 'Chỉ xem dữ liệu thô & Import';
-  return 'Không có quyền PU Report';
+function miniRmsLabel(p: MiniRmsAccess): string {
+  if (p === 'full') return 'Full';
+  if (p === 'data_only') return 'Data Only';
+  return 'None';
+}
+
+function ToggleRow({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-colors ${disabled ? 'opacity-50 cursor-not-allowed border-navy-100 bg-navy-50/30' : 'cursor-pointer border-navy-100 bg-navy-50/40 hover:bg-navy-50'}`}>
+      <span className="text-sm text-navy-700">{label}</span>
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(!checked)}
+        disabled={disabled}
+        className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${checked ? 'bg-gold-500' : 'bg-navy-200'}`}
+      >
+        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform mt-0.5 ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      </button>
+    </label>
+  );
 }
 
 function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
@@ -1033,6 +1065,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     allowed: [],
     canAccessPuReport: false,
     canUploadPuOnly: false,
+    permissions: { ...DEFAULT_USER_PERMISSIONS, calendar: { view: true, edit_rates: false, view_net_b2b: false }, settings: { manage_inventory: false, manage_users: false } },
   });
 
   const loadAll = useCallback(async () => {
@@ -1072,10 +1105,12 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
       allowed: [],
       canAccessPuReport: false,
       canUploadPuOnly: false,
+      permissions: JSON.parse(JSON.stringify(DEFAULT_USER_PERMISSIONS)),
     });
     setModalOpen(true);
   };
   const openEdit = (u: AppUser) => {
+    const perms = permissionsFromUser(u);
     setForm({
       id: u.id,
       username: u.username,
@@ -1085,6 +1120,7 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
       allowed: u.allowed_hotel_ids || [],
       canAccessPuReport: u.can_access_pu_report === true,
       canUploadPuOnly: u.can_upload_pu_only === true,
+      permissions: JSON.parse(JSON.stringify(perms)),
     });
     setModalOpen(true);
   };
@@ -1108,14 +1144,18 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     }
     setSaving(true);
     const allowedHotels = form.role === 'admin' ? ['*'] : form.allowed;
+    const perms = form.role === 'admin'
+      ? { calendar: { view: true, edit_rates: true, view_net_b2b: true }, mini_rms: 'full' as MiniRmsAccess, settings: { manage_inventory: true, manage_users: true } }
+      : form.permissions;
     const payload = {
       username: form.username.trim(),
       password: form.password,
       email: form.email.trim() || null,
       role: form.role,
       allowed_hotel_ids: allowedHotels,
-      can_access_pu_report: form.role === 'admin' ? true : form.canAccessPuReport,
-      can_upload_pu_only: form.role === 'admin' ? false : form.canUploadPuOnly,
+      can_access_pu_report: form.role === 'admin' ? true : perms.mini_rms === 'full',
+      can_upload_pu_only: form.role === 'admin' ? false : perms.mini_rms === 'data_only',
+      permissions: perms,
     };
     if (form.id) {
       const { error } = await supabase.from('app_users').update(payload).eq('id', form.id);
@@ -1153,18 +1193,20 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
     }
   };
 
-  const updatePuPerm = async (u: AppUser, perm: PuPerm) => {
+  const updatePerm = async (u: AppUser, perms: UserPermissions) => {
     if (u.role === 'admin') return;
-    const canAccessPuReport = perm === 'full';
-    const canUploadPuOnly = perm === 'upload_only';
     const { error } = await supabase
       .from('app_users')
-      .update({ can_access_pu_report: canAccessPuReport, can_upload_pu_only: canUploadPuOnly })
+      .update({
+        permissions: perms,
+        can_access_pu_report: perms.mini_rms === 'full',
+        can_upload_pu_only: perms.mini_rms === 'data_only',
+      })
       .eq('id', u.id);
     if (error) {
       onToast({ kind: 'err', text: `Lỗi: ${error.message}` });
     } else {
-      onToast({ kind: 'ok', text: 'Đã cập nhật phân quyền tài khoản thành công' });
+      onToast({ kind: 'ok', text: 'Đã cập nhật phân quyền thành công' });
       await reloadUsers();
     }
   };
@@ -1233,27 +1275,22 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
                   </td>
                   <td className="px-3 py-2.5">
                     {u.role === 'admin' ? (
-                      <Badge tone="gold">Admin</Badge>
+                      <Badge tone="gold">Admin (toàn quyền)</Badge>
                     ) : (
-                      <div className="space-y-1">
-                        {(['full', 'upload_only', 'none'] as PuPerm[]).map((p) => {
-                          const checked = puPermFromUser(u) === p;
-                          return (
-                            <label
-                              key={p}
-                              className="flex items-center gap-1.5 text-xs text-navy-700 cursor-pointer hover:text-navy-800"
-                            >
-                              <input
-                                type="radio"
-                                name={`pu-perm-${u.id}`}
-                                checked={checked}
-                                onChange={() => updatePuPerm(u, p)}
-                                className="accent-gold-500"
-                              />
-                              {puPermLabel(p)}
-                            </label>
-                          );
-                        })}
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-block w-2 h-2 rounded-full ${permissionsFromUser(u).calendar.view ? 'bg-emerald-500' : 'bg-navy-200'}`} />
+                          <span className="text-navy-600">Lịch: {permissionsFromUser(u).calendar.view ? 'Xem' : '—'}</span>
+                          {permissionsFromUser(u).calendar.edit_rates && <span className="text-emerald-600">+ Sửa giá</span>}
+                          {permissionsFromUser(u).calendar.view_net_b2b && <span className="text-gold-600">+ Net/B2B</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-block w-2 h-2 rounded-full ${permissionsFromUser(u).mini_rms !== 'none' ? 'bg-emerald-500' : 'bg-navy-200'}`} />
+                          <span className="text-navy-600">MiniRMS: {miniRmsLabel(permissionsFromUser(u).mini_rms)}</span>
+                        </div>
+                        {(permissionsFromUser(u).settings.manage_inventory || permissionsFromUser(u).settings.manage_users) && (
+                          <div className="text-navy-500">Settings: {[permissionsFromUser(u).settings.manage_inventory && 'Inventory', permissionsFromUser(u).settings.manage_users && 'Users'].filter(Boolean).join(', ')}</div>
+                        )}
                       </div>
                     )}
                   </td>
@@ -1328,50 +1365,83 @@ function UsersTab({ onToast }: { onToast: (t: Toast) => void }) {
           </Field>
 
           {form.role === 'user' && (
-            <Field label="Quyền truy cập PU Report" hint="Chọn mức phân quyền cho trang PU Report">
-              <div className="space-y-1.5">
-                {([
-                  { v: 'full', label: 'Full quyền PU Report', desc: 'Xem KPIs, Smart Alerts, charts, dữ liệu thô & upload files' },
-                  { v: 'upload_only', label: 'Chỉ xem dữ liệu thô & Import Data', desc: 'Chỉ xem bảng dữ liệu thô và import file (ẩn KPIs/ADR/Doanh thu)' },
-                  { v: 'none', label: 'Không có quyền PU Report', desc: 'Không truy cập trang PU Report' },
-                ] as { v: PuPerm; label: string; desc: string }[]).map((opt) => {
-                  const checked =
-                    opt.v === 'full'
-                      ? form.canAccessPuReport
-                      : opt.v === 'upload_only'
-                        ? form.canUploadPuOnly && !form.canAccessPuReport
-                        : !form.canAccessPuReport && !form.canUploadPuOnly;
-                  return (
-                    <label
-                      key={opt.v}
-                      className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
-                        checked
-                          ? 'border-gold-500/40 bg-gold-500/10 text-navy-800'
-                          : 'border-navy-100 bg-navy-50/40 text-navy-700 hover:bg-navy-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="pu-perm-form"
-                        checked={checked}
-                        onChange={() =>
-                          setForm({
-                            ...form,
-                            canAccessPuReport: opt.v === 'full',
-                            canUploadPuOnly: opt.v === 'upload_only',
-                          })
-                        }
-                        className="accent-gold-500 mt-0.5"
-                      />
-                      <div>
-                        <div className="font-medium">{opt.label}</div>
-                        <div className="text-xs text-navy-400 mt-0.5">{opt.desc}</div>
-                      </div>
-                    </label>
-                  );
-                })}
+            <>
+              {/* ============ GRANULAR PERMISSIONS MATRIX ============ */}
+              <div className="rounded-xl border border-navy-100 bg-navy-50/30 p-4 space-y-4">
+                <div className="text-sm font-semibold text-navy-800">Phân quyền chi tiết (Granular Permissions)</div>
+
+                {/* GROUP 1: Calendar & Rates */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Nhóm 1: Lịch & Quản lý Giá</div>
+                  <ToggleRow
+                    label="Xem trang Lịch"
+                    checked={form.permissions.calendar.view}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, view: v } } })}
+                  />
+                  <ToggleRow
+                    label="Chỉnh sửa & Cập nhật Giá"
+                    checked={form.permissions.calendar.edit_rates}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, edit_rates: v } } })}
+                  />
+                  <ToggleRow
+                    label="Xem giá Net & B2B Rate"
+                    checked={form.permissions.calendar.view_net_b2b}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, calendar: { ...form.permissions.calendar, view_net_b2b: v } } })}
+                  />
+                </div>
+
+                {/* GROUP 2: MiniRMS */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Nhóm 2: Mô-đun MiniRMS & Báo cáo (Page 5)</div>
+                  {([
+                    { v: 'full' as MiniRmsAccess, label: 'Full quyền MiniRMS', desc: 'Tab 1 PU Report & Tab 2 Analytics, KPIs, ADR, Charts & Imports' },
+                    { v: 'data_only' as MiniRmsAccess, label: 'Chỉ xem Dữ liệu thô & Import Data', desc: 'Bảng dữ liệu thô & upload files; ẩn KPIs/ADR/Revenue & Tab 2' },
+                    { v: 'none' as MiniRmsAccess, label: 'Không có quyền MiniRMS', desc: 'Ẩn Page 5 khỏi điều hướng' },
+                  ]).map((opt) => {
+                    const checked = form.permissions.mini_rms === opt.v;
+                    return (
+                      <label
+                        key={opt.v}
+                        className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
+                          checked
+                            ? 'border-gold-500/40 bg-gold-500/10 text-navy-800'
+                            : 'border-navy-100 bg-white/60 text-navy-700 hover:bg-navy-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="mini-rms-perm"
+                          checked={checked}
+                          onChange={() =>
+                            setForm({ ...form, permissions: { ...form.permissions, mini_rms: opt.v } })
+                          }
+                          className="accent-gold-500 mt-0.5"
+                        />
+                        <div>
+                          <div className="font-medium">{opt.label}</div>
+                          <div className="text-xs text-navy-400 mt-0.5">{opt.desc}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* GROUP 3: System Settings */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-navy-600 uppercase tracking-wide">Nhóm 3: Cấu hình Hệ thống</div>
+                  <ToggleRow
+                    label="Quản lý Số lượng Phòng vật lý & Mã giá"
+                    checked={form.permissions.settings.manage_inventory}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, settings: { ...form.permissions.settings, manage_inventory: v } } })}
+                  />
+                  <ToggleRow
+                    label="Quản lý Người dùng & Phân quyền"
+                    checked={form.permissions.settings.manage_users}
+                    onChange={(v) => setForm({ ...form, permissions: { ...form.permissions, settings: { ...form.permissions.settings, manage_users: v } } })}
+                  />
+                </div>
               </div>
-            </Field>
+            </>
           )}
 
           {form.role === 'admin' ? (

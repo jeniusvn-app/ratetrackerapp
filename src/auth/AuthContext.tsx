@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { AppUser, Hotel, Role } from '@/types';
+import type { AppUser, Hotel, Role, UserPermissions, MiniRmsAccess, CalendarPermissions, SettingsPermissions } from '@/types';
+import { DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '@/types';
 
 interface AuthState {
   user: AppUser | null;
@@ -183,16 +184,73 @@ export function isAdmin(u: AppUser | null): boolean {
   return u?.role === 'admin';
 }
 
+export function getUserPermissions(u: AppUser | null): UserPermissions {
+  if (!u) return DEFAULT_PERMISSIONS;
+  if (u.role === 'admin') return ADMIN_PERMISSIONS;
+  if (u.permissions) return u.permissions;
+  // Fallback: derive from legacy boolean fields
+  const miniRms: MiniRmsAccess = u.can_access_pu_report ? 'full' : u.can_upload_pu_only ? 'data_only' : 'none';
+  return {
+    calendar: { view: true, edit_rates: false, view_net_b2b: false },
+    mini_rms: miniRms,
+    settings: { manage_inventory: false, manage_users: false },
+  };
+}
+
+export function canViewCalendar(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).calendar.view;
+}
+
+export function canEditRates(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).calendar.edit_rates;
+}
+
+export function canViewNetB2B(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).calendar.view_net_b2b;
+}
+
+export function canAccessMiniRms(u: AppUser | null): boolean {
+  return getMiniRmsAccess(u) !== 'none';
+}
+
+export function getMiniRmsAccess(u: AppUser | null): MiniRmsAccess {
+  if (!u) return 'none';
+  if (u.role === 'admin') return 'full';
+  return getUserPermissions(u).mini_rms;
+}
+
+export function canAccessFullMiniRms(u: AppUser | null): boolean {
+  return getMiniRmsAccess(u) === 'full';
+}
+
+export function canManageInventory(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).settings.manage_inventory;
+}
+
+export function canManageUsers(u: AppUser | null): boolean {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return getUserPermissions(u).settings.manage_users;
+}
+
 export function canAccessPuReport(u: AppUser | null): boolean {
-  return !!u && (u.role === 'admin' || u.can_access_pu_report === true);
+  return canAccessMiniRms(u);
 }
 
 export function canUploadPuOnly(u: AppUser | null): boolean {
-  return !!u && u.role !== 'admin' && u.can_upload_pu_only === true && u.can_access_pu_report !== true;
+  return getMiniRmsAccess(u) === 'data_only';
 }
 
 export function canAccessFullPuReport(u: AppUser | null): boolean {
-  return !!u && (u.role === 'admin' || u.can_access_pu_report === true);
+  return canAccessFullMiniRms(u);
 }
 
 export function canSeeAllHotels(u: AppUser | null): boolean {

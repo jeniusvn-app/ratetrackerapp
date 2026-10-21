@@ -17,7 +17,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { supabase } from '@/lib/supabase';
-import { useAuth, canAccessFullPuReport } from '@/auth/AuthContext';
+import { useAuth, canAccessFullPuReport, getMiniRmsAccess } from '@/auth/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Modal, Select } from '@/components/ui';
 import { formatVND, toDMY, toISODate, excelSerialToDate } from '@/lib/format';
 import type { Hotel } from '@/types';
@@ -239,7 +239,8 @@ function aggregateByArrival(records: PickupRecord[]): Map<string, DayAgg> {
 export function PUReportPage() {
   const { user, hotels } = useAuth();
   const isFullAccess = canAccessFullPuReport(user);
-  const isUploadOnly = !isFullAccess && !!user && user.can_upload_pu_only === true;
+  const isUploadOnly = !isFullAccess && getMiniRmsAccess(user) === 'data_only';
+  const canSeeRevenue = isFullAccess;
   const [activeTab, setActiveTab] = useState<'pu' | 'analytics'>('pu');
 
   const [records, setRecords] = useState<PickupRecord[]>([]);
@@ -776,6 +777,7 @@ export function PUReportPage() {
           <BarChart3 size={16} />
           PU Report
         </button>
+        {isFullAccess && (
         <button
           onClick={() => setActiveTab('analytics')}
           className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
@@ -787,6 +789,7 @@ export function PUReportPage() {
           <LineChart size={16} />
           Analytics & MiniRMS
         </button>
+        )}
       </div>
 
       {activeTab === 'analytics' && isFullAccess && selectedHotelIds.length > 0 && (
