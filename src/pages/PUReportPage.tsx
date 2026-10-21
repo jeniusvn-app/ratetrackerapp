@@ -510,8 +510,8 @@ export function PUReportPage() {
     const tomorrowISO = toISODate(new Date(Date.now() + 86400000));
     const getLine = (dateISO: string): string => {
       const a = agg.get(dateISO);
-      if (!a) return '0 phòng — ADR: 0đ — Doanh thu: 0đ — Cancellation: 0';
-      return `${a.nights} phòng — ADR: ${formatVND(Math.round(a.adr))} — Doanh thu: ${formatVND(Math.round(a.revenue))} — Cancellation: ${a.cancelCount}`;
+      if (!a) return '0 đêm phòng — ADR: 0đ — Doanh thu: 0đ — Cancellation: 0';
+      return `${a.nights} đêm phòng — ADR: ${formatVND(Math.round(a.adr))} — Doanh thu: ${formatVND(Math.round(a.revenue))} — Cancellation: ${a.cancelCount}`;
     };
     return {
       nights,
@@ -520,7 +520,7 @@ export function PUReportPage() {
       peak,
       topSrc,
       peakArrival: peakArrival
-        ? { date: peakArrival.date, label: `${toDMY(peakArrival.date)} | ${peakArrival.nights} phòng — ADR: ${formatVND(Math.round(peakArrival.adr))} — Doanh thu: ${formatVND(Math.round(peakArrival.revenue))} — Cancellation: ${peakArrival.cancelCount}` }
+        ? { date: peakArrival.date, label: `${toDMY(peakArrival.date)} | ${peakArrival.nights} đêm phòng — ADR: ${formatVND(Math.round(peakArrival.adr))} — Doanh thu: ${formatVND(Math.round(peakArrival.revenue))} — Cancellation: ${peakArrival.cancelCount}` }
         : null,
       today: getLine(todayISO),
       tomorrow: getLine(tomorrowISO),
@@ -880,7 +880,7 @@ export function PUReportPage() {
             <div className="rounded-lg bg-white/70 border border-navy-100 px-3 py-2.5">
               <div className="text-xs text-navy-500">Khung giờ PU nhiều nhất</div>
               <div className="text-sm font-bold mono-num text-navy-800">{overview24h.peak ? overview24h.peak.range : '—'}</div>
-              {overview24h.peak && <div className="text-xs mono-num text-navy-500">{overview24h.peak.nights} phòng · {overview24h.peak.bookings} booking</div>}
+              {overview24h.peak && <div className="text-xs mono-num text-navy-500">{overview24h.peak.nights} đêm phòng · {overview24h.peak.bookings} booking</div>}
             </div>
           </div>
           <div className="text-sm text-navy-800 space-y-1.5">
@@ -890,7 +890,7 @@ export function PUReportPage() {
                 <span>
                   <span className="text-navy-500">Top Nguồn 24h:</span>{' '}
                   <span className="font-semibold">{overview24h.topSrc.source}</span>
-                  <span className="text-navy-400"> · {overview24h.topSrc.nights} phòng</span>
+                  <span className="text-navy-400"> · {overview24h.topSrc.nights} đêm phòng</span>
                 </span>
               </div>
             )}
@@ -935,7 +935,7 @@ export function PUReportPage() {
                 <thead className="bg-navy-50 text-navy-700">
                   <tr>
                     <th className="text-left px-2.5 py-2 font-semibold">Nguồn</th>
-                    <th className="text-right px-2.5 py-2 font-semibold">Số lượng PU</th>
+                    <th className="text-right px-2.5 py-2 font-semibold">Room Nights</th>
                     <th className="text-right px-2.5 py-2 font-semibold">ADR</th>
                     <th className="text-right px-2.5 py-2 font-semibold">Doanh thu</th>
                     <th className="text-right px-2.5 py-2 font-semibold">Hủy phòng</th>
@@ -950,7 +950,7 @@ export function PUReportPage() {
                       <td className="px-2.5 py-2 text-right mono-num text-navy-600">{formatVND(Math.round(row.adr))}</td>
                       <td className="px-2.5 py-2 text-right mono-num font-semibold text-navy-800">{formatVND(Math.round(row.revenue))}</td>
                       <td className="px-2.5 py-2 text-right mono-num text-red-600">
-                        {row.cancelCount > 0 ? `${row.cancelCount} (${row.cancelNights} phòng)` : '0'}
+                        {row.cancelCount > 0 ? `${row.cancelCount} (${row.cancelNights} đêm phòng)` : '0'}
                       </td>
                       <td className="px-2.5 py-2 mono-num text-navy-600 whitespace-nowrap">{row.peakRange || '—'}</td>
                     </tr>
@@ -1046,7 +1046,7 @@ export function PUReportPage() {
             <div className="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5">
               <div className="text-xs text-navy-500">Top Nguồn</div>
               <div className="text-sm font-bold text-navy-800">{periodStats.topSource ? periodStats.topSource.source : '—'}</div>
-              {periodStats.topSource && <div className="text-xs mono-num text-navy-500">{periodStats.topSource.nights} phòng</div>}
+              {periodStats.topSource && <div className="text-xs mono-num text-navy-500">{periodStats.topSource.nights} đêm phòng</div>}
             </div>
           </div>
 
@@ -1058,7 +1058,7 @@ export function PUReportPage() {
                 <span className="text-navy-500">Khung giờ PU nhiều nhất:</span>{' '}
                 <span className="font-semibold mono-num text-navy-800">{periodStats.peak.range}</span>
                 <span className="text-navy-400 mx-1">·</span>
-                <span className="mono-num">{periodStats.peak.nights} phòng · {periodStats.peak.bookings} booking</span>
+                <span className="mono-num">{periodStats.peak.nights} đêm phòng · {periodStats.peak.bookings} booking</span>
               </span>
             </div>
           )}
