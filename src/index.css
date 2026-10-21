@@ -37,8 +37,8 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 /* ==========================================================
-   MINIRMS / RATETRACKER AI - MASTER UI & FORM CONTRAST FIX
-   Author: Vibe Coding Expert (0 Token Cost)
+   MINIRMS / RATETRACKER AI - FIX TIÊU ĐỀ GIAI ĐOẠN ÁP DỤNG
+   Tốn đúng 0 Token AI - Dán thay thế toàn bộ src/index.css
    ========================================================== */
 
 /* 1. PALETTE MÀU CHÍNH & OVERRIDE BIẾN TOÀN CỤC */
@@ -90,19 +90,26 @@ header nav .bg-white,
 }
 
 /* ==========================================================
-   4. CAN THIỆP TẬN GỐC TẤT CẢ LABELS, CHECKBOX & KHU VỰC LOẠI PHÒNG
+   4. SỬA DỨT ĐIỂM DÒNG "GIAI ĐOẠN ÁP DỤNG" & TIÊU ĐỀ PHỤ
    ========================================================== */
 
-/* Ép tiêu đề nhóm (Loại phòng áp dụng, Giai đoạn áp dụng...) về màu Xanh Navy */
+/* Ép tất cả tiêu đề phụ, dòng có icon lịch/nhãn nhóm về màu Xanh Navy rõ nét */
 h1, h2, h3, h4, h5, h6, 
-.font-bold, .font-semibold, 
-[class*="text-orange-300"], [class*="text-orange-200"],
-[class*="text-amber-300"], [class*="text-amber-200"] {
+.font-bold, .font-semibold,
+[class*="text-orange-"], 
+[class*="text-amber-"],
+div:has(> svg) span,
+div:has(> svg) {
   color: #123C69 !important;
   font-weight: 700 !important;
 }
 
-/* Ép toàn bộ nhãn Checkbox (Superior King, Superior Twin, Deluxe King...) về màu đen đậm sắc nét */
+/* Ép màu icon lịch/mũi tên đi kèm tiêu đề */
+div:has(> svg) svg {
+  color: #123C69 !important;
+}
+
+/* Danh sách checkbox (Superior King, Superior Twin, Deluxe...) */
 label, 
 label span,
 [class*="checkbox"] + label,
@@ -110,7 +117,7 @@ label span,
 [class*="grid"] label,
 .items-center label,
 .items-center span {
-  color: #0f172a !important; /* Đen đậm 100% rõ ràng */
+  color: #0f172a !important;
   font-weight: 500 !important;
 }
 
