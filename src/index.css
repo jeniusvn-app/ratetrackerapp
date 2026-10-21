@@ -134,10 +134,10 @@ input:focus, select:focus {
   outline: none !important;
 }
 /* ==========================================================
-   LÀM XÁM NỀN VÀ MỜ CHỮ CÁC NGÀY NGOÀI THÁNG TRÊN LỊCH
+   LÀM XÁM NỀN VÀ MỜ CHỮ CÁC NGÀY NGOÀI THÁNG TRÊN LỊCH (0 TOKEN)
    ========================================================== */
 
-/* 1. Phủ màu nền xám dịu cho ô ngày thuộc tháng khác */
+/* 1. Phủ màu nền xám nhạt dịu cho ô ngày thuộc tháng khác */
 [class*="calendar"] .opacity-40,
 [class*="calendar"] .opacity-50,
 [class*="calendar"] .text-slate-400,
@@ -145,10 +145,10 @@ input:focus, select:focus {
 [class*="calendar"] [class*="outside"],
 [class*="day-outside"] {
   background-color: #f1f5f9 !important; /* Màu xám nhạt Slate-100 dịu mắt */
-  opacity: 0.6 !important;
+  opacity: 0.7 !important;
 }
 
-/* 2. Làm mờ chữ số ngày (ví dụ 28, 29, 30, 1) để nổi bật các ngày trong tháng */
+/* 2. Làm mờ chữ số ngày (28, 29, 30, 1...) để làm nổi bật các ngày trong tháng */
 [class*="calendar"] .opacity-40 *,
 [class*="calendar"] .opacity-50 *,
 [class*="calendar"] .text-slate-400 *,
@@ -158,7 +158,7 @@ input:focus, select:focus {
   font-weight: 400 !important;
 }
 
-/* 3. Giữ nguyên đường viền mờ dịu cho toàn bộ ô lịch */
+/* 3. Giữ đường viền mờ nhạt đồng bộ cho toàn bộ ô lịch */
 [class*="calendar"] [class*="day"],
 [class*="calendar"] .grid > div {
   border-color: rgba(186, 178, 181, 0.4) !important;
