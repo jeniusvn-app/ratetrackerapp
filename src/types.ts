@@ -51,6 +51,7 @@ export interface DailyRate {
   net_price: number;
   cms_price: number;
   b2b_price: number | null;
+  updated_at: string;
 }
 
 export interface MasterPriceList {
@@ -65,11 +66,17 @@ export interface MasterPriceList {
   approval_date: string | null;
 }
 
+export interface DateRange {
+  start: string; // YYYY-MM-DD
+  end: string;   // YYYY-MM-DD
+}
+
 export interface RateChangeRequest {
   id: string;
   hotel_id: string;
   start_date: string;
   end_date: string;
+  date_ranges: DateRange[] | null;
   rate_code: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   created_by_user_id: string | null;

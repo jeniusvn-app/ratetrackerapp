@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trash2, Plus, CalendarRange } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, isAdmin } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
-import type { Hotel, PriceMatrix, RateChangeRequest, RoomType } from '@/types';
+import type { DateRange, Hotel, PriceMatrix, RateChangeRequest, RoomType } from '@/types';
 import { Button, Select, Card, Field, Badge, EmptyState, Modal, Input } from '@/components/ui';
 import { normCode, toDMY, dateRangeISO, toISODate } from '@/lib/format';
+import { notifyRatesUpdated, expandDateRanges, totalDaysInRanges, rangeBounds } from '@/lib/rateSync';
 import { sendTelegramMessage, sendRateRequestTelegramNotification } from '@/services/telegramService';
 
 type Toast = { kind: 'ok' | 'err' | 'info'; text: string } | null;
@@ -15,8 +17,9 @@ export function RateRequestsPage() {
 
   // Form state
   const [formHotelId, setFormHotelId] = useState('');
-  const [startDate, setStartDate] = useState(toISODate(new Date()));
-  const [endDate, setEndDate] = useState(toISODate(new Date()));
+  const [dateRanges, setDateRanges] = useState<DateRange[]>([
+    { start: toISODate(new Date()), end: toISODate(new Date()) },
+  ]);
   const [rateCode, setRateCode] = useState('');
   const [selectedRoomTypeIds, setSelectedRoomTypeIds] = useState<string[]>([]);
   const [dynSell, setDynSell] = useState('');
@@ -45,8 +48,6 @@ export function RateRequestsPage() {
     if (hotels.length && !formHotelId) setFormHotelId(hotels[0].id);
   }, [hotels, formHotelId]);
 
-  // Load distinct rate codes for the selected hotel from price_matrix.
-  // Normalization: .trim().toUpperCase() applied to every code.
   useEffect(() => {
     (async () => {
       if (!formHotelId) {
@@ -89,16 +90,33 @@ export function RateRequestsPage() {
     loadRequests();
   }, [loadRequests]);
 
-  // ---------- Submit ----------
   const isDynamic = rateCode === 'Dynamic';
+  const totalDays = useMemo(() => totalDaysInRanges(dateRanges), [dateRanges]);
+
+  // ---------- Date range helpers ----------
+  const updateRange = (idx: number, field: 'start' | 'end', value: string) => {
+    setDateRanges((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+  const addRange = () => {
+    const last = dateRanges[dateRanges.length - 1];
+    const nextStart = last?.end || toISODate(new Date());
+    setDateRanges((prev) => [...prev, { start: nextStart, end: nextStart }]);
+  };
+  const removeRange = (idx: number) => {
+    if (dateRanges.length <= 1) return;
+    setDateRanges((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ---------- Submit ----------
   const submit = async () => {
     setFormMsg(null);
-    if (!formHotelId || !rateCode || !startDate || !endDate) {
+    if (!formHotelId || !rateCode) {
       setFormMsg({ kind: 'err', text: 'Vui lòng điền đầy đủ các trường.' });
       return;
     }
-    if (startDate > endDate) {
-      setFormMsg({ kind: 'err', text: 'Từ ngày phải trước hoặc bằng Đến ngày.' });
+    const dates = expandDateRanges(dateRanges);
+    if (dates.length === 0) {
+      setFormMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một giai đoạn ngày hợp lệ.' });
       return;
     }
     if (isDynamic) {
@@ -111,11 +129,13 @@ export function RateRequestsPage() {
         return;
       }
     }
+    const bounds = rangeBounds(dateRanges);
     setSubmitting(true);
     const payload: Record<string, unknown> = {
       hotel_id: formHotelId,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: bounds.start,
+      end_date: bounds.end,
+      date_ranges: dateRanges.filter((r) => r.start && r.end && r.start <= r.end),
       rate_code: rateCode,
       status: 'Pending',
       created_by_user_id: user?.id,
@@ -130,15 +150,16 @@ export function RateRequestsPage() {
       setSubmitting(false);
       return;
     }
-    // Notify admin via Telegram (non-blocking — DB insert already succeeded)
     const hotelName = hotelNameById(formHotelId);
-    const effectiveDate = `${toDMY(startDate)} → ${toDMY(endDate)}`;
+    const effectiveDate = dateRanges
+      .filter((r) => r.start && r.end && r.start <= r.end)
+      .map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`)
+      .join('; ');
     const roomTypeSummary = isDynamic
       ? selectedRoomTypeIds
           .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
           .join(', ')
       : rateCode;
-    const oldRate = null;
     const newRate = isDynamic
       ? [dynSell, dynNet, dynB2b].filter((v) => v !== '').join(' / ') || null
       : null;
@@ -147,27 +168,24 @@ export function RateRequestsPage() {
         hotel_name: hotelName,
         room_type: roomTypeSummary,
         effective_date: effectiveDate,
-        old_rate: oldRate,
+        old_rate: null,
         new_rate: newRate,
         requested_by: user?.username || '—',
         reason: isDynamic ? 'Yêu cầu giá Dynamic' : `Áp dụng mã giá ${rateCode}`,
         created_at: new Date().toISOString(),
       });
     } catch {
-      // non-blocking — notification failure should not affect the DB insert
+      // non-blocking
     }
     setFormMsg({ kind: 'ok', text: 'Gửi yêu cầu chỉnh giá thành công! Bạn có thể tạo tiếp yêu cầu mới.' });
     setToast({ kind: 'ok', text: 'Gửi yêu cầu chỉnh giá thành công! Bạn có thể tạo tiếp yêu cầu mới.' });
-    // Full form reset for consecutive submissions
     setSelectedRoomTypeIds([]);
     setDynSell('');
     setDynNet('');
     setDynB2b('');
-    setStartDate(toISODate(new Date()));
-    setEndDate(toISODate(new Date()));
+    setDateRanges([{ start: toISODate(new Date()), end: toISODate(new Date()) }]);
     setSubmitting(false);
     await loadRequests();
-    // Scroll back to top of form for next entry
     try {
       document.querySelector('[data-rate-request-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
@@ -180,32 +198,32 @@ export function RateRequestsPage() {
     setActingId(req.id);
     setToast(null);
     try {
-      // 1. Normalize target rate code
       const normTarget = normCode(req.rate_code);
 
-      // 2. Strict YYYY-MM-DD dates (already stored as such; rebuild defensively)
-      const dates = dateRangeISO(req.start_date, req.end_date);
+      // Use date_ranges if available, else fall back to start_date/end_date
+      const ranges: DateRange[] =
+        req.date_ranges && req.date_ranges.length > 0
+          ? req.date_ranges
+          : [{ start: req.start_date, end: req.end_date }];
+      const dates = expandDateRanges(ranges);
       if (dates.length === 0) {
         setToast({ kind: 'err', text: 'Khoảng ngày không hợp lệ.' });
         setActingId(null);
         return;
       }
 
-      // 3. Fetch ALL room types for the hotel
       const { data: rts } = await supabase
         .from('room_types')
         .select('*')
         .eq('hotel_id', req.hotel_id);
       const roomTypes = (rts as RoomType[]) || [];
 
-      // Fetch matching prices from price_matrix for the hotel
       const { data: pm } = await supabase
         .from('price_matrix')
         .select('*')
         .eq('hotel_id', req.hotel_id);
       const matrix = (pm as PriceMatrix[]) || [];
 
-      // 4. Build daily_rates rows for every room type × date
       const rows: {
         hotel_id: string;
         room_type_id: string;
@@ -218,9 +236,7 @@ export function RateRequestsPage() {
       }[] = [];
 
       if (normTarget === 'DYNAMIC') {
-        // Dynamic request: apply the user-provided prices to the selected room types.
-        const dynRoomTypeIds: string[] =
-          (req.room_type_ids as string[] | null) || [];
+        const dynRoomTypeIds: string[] = (req.room_type_ids as string[] | null) || [];
         const sellNum = req.selling_price != null ? Number(req.selling_price) : null;
         const netNum = req.net_price != null ? Number(req.net_price) : null;
         const b2bNum = req.b2b_price != null ? Number(req.b2b_price) : null;
@@ -248,7 +264,7 @@ export function RateRequestsPage() {
               rows.push({
                 hotel_id: req.hotel_id,
                 room_type_id: rt.id,
-                date, // YYYY-MM-DD
+                date,
                 rate_code: m.rate_code,
                 selling_price: Number(m.selling_price),
                 net_price: Number(m.net_price),
@@ -261,73 +277,46 @@ export function RateRequestsPage() {
       }
 
       if (rows.length === 0) {
-        // No matching rates in matrix — still mark Approved but inform
         await supabase
           .from('rate_change_requests')
           .update({ status: 'Approved' })
           .eq('id', req.id);
         await sendTelegramMessage(
-          `<b>✅ YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
+          `<b>YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
             `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
             `<b>Mã giá:</b> ${req.rate_code}\n` +
-            `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}\n` +
+            `<b>Giai đoạn:</b> ${ranges.map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`).join('; ')}\n` +
             `<b>Trạng thái:</b> Đã cập nhật vào lịch giá Trang 1!`,
         );
-        setToast({
-          kind: 'info',
-          text: 'Đã duyệt nhưng không có giá trong price_matrix để áp dụng.',
-        });
+        setToast({ kind: 'info', text: 'Đã duyệt nhưng không có giá trong price_matrix để áp dụng.' });
         await loadRequests();
         setActingId(null);
         return;
       }
 
-      // 4. UPSERT into daily_rates — delete existing rows for the same
-      // (hotel, room_type, rate_code, date range) then insert fresh.
-      const keys = new Set<string>();
-      for (const r of rows) keys.add(`${r.room_type_id}|${r.rate_code}`);
-      for (const k of keys) {
-        const [rtId, rc] = k.split('|');
-        await supabase
-          .from('daily_rates')
-          .delete()
-          .eq('hotel_id', req.hotel_id)
-          .eq('room_type_id', rtId)
-          .eq('rate_code', rc)
-          .gte('date', req.start_date)
-          .lte('date', req.end_date);
-      }
-      const { error: insErr } = await supabase.from('daily_rates').insert(rows);
-      if (insErr) throw insErr;
+      // Native UPSERT — latest overwrite
+      const { error: upsertErr } = await supabase
+        .from('daily_rates')
+        .upsert(rows, { onConflict: 'hotel_id,room_type_id,date,rate_code' });
+      if (upsertErr) throw upsertErr;
 
-      // Bump version so Page 1 (Lookup Calendar) re-fetches when visited.
-      try {
-        const cur = Number(localStorage.getItem('rt_daily_rates_version') || '0');
-        localStorage.setItem('rt_daily_rates_version', String(cur + 1));
-      } catch {
-        // ignore
-      }
+      // Notify calendar page to re-fetch
+      notifyRatesUpdated();
 
-      // 5. Update status to Approved
       await supabase
         .from('rate_change_requests')
         .update({ status: 'Approved' })
         .eq('id', req.id);
 
-      // 6. Notify via Telegram
       await sendTelegramMessage(
-        `<b>✅ YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
+        `<b>YÊU CẦU CHỈNH GIÁ ĐÃ ĐƯỢC DUYỆT</b>\n` +
           `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
           `<b>Mã giá:</b> ${req.rate_code}\n` +
-          `<b>Giai đoạn:</b> ${toDMY(req.start_date)} đến ${toDMY(req.end_date)}\n` +
+          `<b>Giai đoạn:</b> ${ranges.map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`).join('; ')}\n` +
           `<b>Trạng thái:</b> Đã cập nhật vào lịch giá Trang 1!`,
       );
 
-      // 7. Refresh the request list (Page 1 calendar re-fetches on its own when visited)
-      setToast({
-        kind: 'ok',
-        text: `Đã duyệt và áp dụng ${rows.length} bản ghi giá vào lịch.`,
-      });
+      setToast({ kind: 'ok', text: `Đã duyệt và áp dụng ${rows.length} bản ghi giá vào lịch.` });
       await loadRequests();
     } catch (e) {
       setToast({ kind: 'err', text: `Lỗi khi áp dụng: ${(e as Error).message}` });
@@ -368,16 +357,22 @@ export function RateRequestsPage() {
       setRejecting(false);
       return;
     }
-    // Telegram notification (non-blocking)
     try {
-      const roomTypeSummary = rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids)
-        ? rejectTarget.room_type_ids.map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8)).join(', ')
-        : rejectTarget.rate_code;
+      const roomTypeSummary =
+        rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids)
+          ? rejectTarget.room_type_ids
+              .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
+              .join(', ')
+          : rejectTarget.rate_code;
+      const ranges: DateRange[] =
+        rejectTarget.date_ranges && rejectTarget.date_ranges.length > 0
+          ? rejectTarget.date_ranges
+          : [{ start: rejectTarget.start_date, end: rejectTarget.end_date }];
       await sendTelegramMessage(
         `❌ <b>YÊU CẦU CHỈNH GIÁ ĐÃ BỊ TỪ CHỐI</b>\n` +
           `• Khách sạn: <b>${hotelNameById(rejectTarget.hotel_id)}</b>\n` +
           `• Loại phòng: <b>${roomTypeSummary}</b>\n` +
-          `• Giai đoạn: ${toDMY(rejectTarget.start_date)} → ${toDMY(rejectTarget.end_date)}\n` +
+          `• Giai đoạn: ${ranges.map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`).join('; ')}\n` +
           `• Lý do từ chối: <i>${rejectReason.trim()}</i>`,
       );
     } catch {
@@ -394,14 +389,20 @@ export function RateRequestsPage() {
     return <Badge tone="amber">Chờ duyệt</Badge>;
   };
 
-  // Auto-dismiss toast
+  const formatRequestDateRange = (r: RateChangeRequest) => {
+    const ranges: DateRange[] =
+      r.date_ranges && r.date_ranges.length > 0
+        ? r.date_ranges
+        : [{ start: r.start_date, end: r.end_date }];
+    return ranges.map((rg) => `${toDMY(rg.start)} → ${toDMY(rg.end)}`).join('; ');
+  };
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Auto-dismiss form message
   useEffect(() => {
     if (!formMsg) return;
     const t = setTimeout(() => setFormMsg(null), 5000);
@@ -430,7 +431,6 @@ export function RateRequestsPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Form tạo yêu cầu */}
         <Card className="p-4 lg:col-span-1" data-rate-request-form>
           <h2 className="text-base font-semibold text-navy-800 mb-3">Tạo yêu cầu chỉnh giá</h2>
           <div className="space-y-3">
@@ -443,24 +443,59 @@ export function RateRequestsPage() {
                 ))}
               </Select>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Từ ngày">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-                />
-              </Field>
-              <Field label="Đến ngày">
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-                />
-              </Field>
+
+            {/* Multi-date range selector */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                  <CalendarRange size={15} className="text-gold-600" />
+                  Giai đoạn áp dụng
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-full px-2 py-0.5">
+                    Tổng: {totalDays} ngày
+                  </span>
+                  <Button variant="subtle" size="sm" onClick={addRange}>
+                    <Plus size={14} /> Thêm
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {dateRanges.map((range, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 bg-navy-50/50 border border-navy-100 rounded-lg p-1.5"
+                  >
+                    <span className="text-xs font-semibold text-navy-400 w-5 text-center flex-shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5 flex-1">
+                      <input
+                        type="date"
+                        value={range.start}
+                        onChange={(e) => updateRange(idx, 'start', e.target.value)}
+                        className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                      />
+                      <input
+                        type="date"
+                        value={range.end}
+                        onChange={(e) => updateRange(idx, 'end', e.target.value)}
+                        className="w-full bg-white border border-navy-200 rounded-md px-2 py-1.5 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeRange(idx)}
+                      disabled={dateRanges.length <= 1}
+                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                      title="Xoá giai đoạn này"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : 'VD: BAR 1, BAR 3, PEAK 1, BREAKFAST…'}>
               <Select value={rateCode} onChange={setRateCode}>
                 {rateCodes.map((c) => (
@@ -511,9 +546,7 @@ export function RateRequestsPage() {
                     <Input value={dynB2b} onChange={setDynB2b} type="number" placeholder="750000" />
                   </Field>
                 </div>
-                <div className="text-xs text-navy-400">
-                  Chỉ cần nhập ít nhất một mức giá.
-                </div>
+                <div className="text-xs text-navy-400">Chỉ cần nhập ít nhất một mức giá.</div>
               </>
             )}
             {formMsg && (
@@ -537,7 +570,6 @@ export function RateRequestsPage() {
           </div>
         </Card>
 
-        {/* Lịch sử yêu cầu & admin workflow */}
         <Card className="p-4 lg:col-span-2">
           <div className="flex flex-wrap items-end gap-3 mb-3">
             <div className="mr-auto flex items-baseline gap-2">
@@ -592,7 +624,7 @@ export function RateRequestsPage() {
                         <Badge tone={r.rate_code === 'Dynamic' ? 'gold' : 'neutral'}>{r.rate_code}</Badge>
                       </td>
                       <td className="px-3 py-2.5 mono-num text-navy-600 whitespace-nowrap">
-                        {toDMY(r.start_date)} → {toDMY(r.end_date)}
+                        {formatRequestDateRange(r)}
                       </td>
                       <td className="px-3 py-2.5 text-navy-600 text-xs">
                         {r.created_by_user_id ? r.created_by_user_id.slice(0, 8) : '—'}
@@ -612,20 +644,10 @@ export function RateRequestsPage() {
                         <td className="px-3 py-2.5 text-right">
                           {r.status === 'Pending' ? (
                             <div className="inline-flex gap-2">
-                              <Button
-                                variant="gold"
-                                size="sm"
-                                onClick={() => setConfirm(r)}
-                                disabled={actingId === r.id}
-                              >
+                              <Button variant="gold" size="sm" onClick={() => setConfirm(r)} disabled={actingId === r.id}>
                                 Duyệt & Áp dụng giá
                               </Button>
-                              <Button
-                                variant="danger"
-                                size="sm"
-                                onClick={() => openRejectModal(r)}
-                                disabled={actingId === r.id}
-                              >
+                              <Button variant="danger" size="sm" onClick={() => openRejectModal(r)} disabled={actingId === r.id}>
                                 Từ chối
                               </Button>
                             </div>
@@ -643,13 +665,8 @@ export function RateRequestsPage() {
         </Card>
       </div>
 
-      {/* Confirmation modal for Approve & Apply */}
-      <Modal
-        open={!!confirm}
-        onClose={() => setConfirm(null)}
-        title="Xác nhận phê duyệt"
-        maxWidth="max-w-md"
-      >
+      {/* Confirmation modal */}
+      <Modal open={!!confirm} onClose={() => setConfirm(null)} title="Xác nhận phê duyệt" maxWidth="max-w-md">
         {confirm && (
           <div className="space-y-4">
             <p className="text-sm text-navy-600">
@@ -671,10 +688,7 @@ export function RateRequestsPage() {
                     <span className="text-navy-800">
                       {Array.isArray(confirm.room_type_ids)
                         ? confirm.room_type_ids
-                            .map(
-                              (id) =>
-                                roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8),
-                            )
+                            .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
                             .join(', ')
                         : '—'}
                     </span>
@@ -688,9 +702,7 @@ export function RateRequestsPage() {
               )}
               <div>
                 <span className="text-navy-500">Giai đoạn:</span>{' '}
-                <span className="mono-num text-navy-800">
-                  {toDMY(confirm.start_date)} → {toDMY(confirm.end_date)}
-                </span>
+                <span className="mono-num text-navy-800">{formatRequestDateRange(confirm)}</span>
               </div>
             </div>
             <p className="text-xs text-navy-500">
@@ -699,9 +711,7 @@ export function RateRequestsPage() {
                 : 'Hệ thống sẽ tra cứu bảng giá (price_matrix) cho tất cả loại phòng của khách sạn, chuẩn hoá mã giá bằng .trim().toUpperCase(), định dạng ngày dạng YYYY-MM-DD, và đẩy vào daily_rates — cập nhật ngay trên Trang tra cứu. Thông báo xác nhận sẽ được gửi qua Telegram.'}
             </p>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="secondary" onClick={() => setConfirm(null)}>
-                Hủy
-              </Button>
+              <Button variant="secondary" onClick={() => setConfirm(null)}>Hủy</Button>
               <Button
                 variant="gold"
                 onClick={async () => {
@@ -719,12 +729,7 @@ export function RateRequestsPage() {
       </Modal>
 
       {/* Rejection modal */}
-      <Modal
-        open={!!rejectTarget}
-        onClose={closeRejectModal}
-        title="Từ Chối Yêu Cầu Chỉnh Giá"
-        maxWidth="max-w-md"
-      >
+      <Modal open={!!rejectTarget} onClose={closeRejectModal} title="Từ Chối Yêu Cầu Chỉnh Giá" maxWidth="max-w-md">
         {rejectTarget && (
           <div className="space-y-4">
             <div className="rounded-lg bg-navy-50 border border-navy-100 p-3 text-sm space-y-1">
@@ -748,9 +753,7 @@ export function RateRequestsPage() {
               )}
               <div>
                 <span className="text-navy-500">Giai đoạn:</span>{' '}
-                <span className="mono-num text-navy-800">
-                  {toDMY(rejectTarget.start_date)} → {toDMY(rejectTarget.end_date)}
-                </span>
+                <span className="mono-num text-navy-800">{formatRequestDateRange(rejectTarget)}</span>
               </div>
             </div>
             <Field label="Lý do từ chối *" hint="Bắt buộc — ví dụ: Mức giá quá thấp so với khung giá sàn, Đã hết quỹ phòng…">
@@ -764,9 +767,7 @@ export function RateRequestsPage() {
               />
             </Field>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="secondary" onClick={closeRejectModal}>
-                Hủy bỏ
-              </Button>
+              <Button variant="secondary" onClick={closeRejectModal}>Hủy bỏ</Button>
               <Button variant="danger" onClick={confirmReject} disabled={rejecting}>
                 {rejecting ? 'Đang xử lý…' : 'Xác nhận Từ chối'}
               </Button>

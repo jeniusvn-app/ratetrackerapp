@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
 import type { DailyRate, Hotel, RoomType } from '@/types';
 import { formatVND, toISODate, toDMY, dateRangeISO } from '@/lib/format';
+import { RATES_UPDATED_EVENT } from '@/lib/rateSync';
 import { Button, Select, Card, Field, EmptyState, Badge } from '@/components/ui';
 import { ExportModal } from '@/components/ExportModal';
 
@@ -52,7 +53,8 @@ export function LookupCalendarPage() {
       .select('*')
       .eq('hotel_id', hotelId)
       .gte('date', monthStart)
-      .lte('date', monthEnd);
+      .lte('date', monthEnd)
+      .order('updated_at', { ascending: false });
     if (!error) setRates((data as DailyRate[]) || []);
     setLoading(false);
   }, [hotelId, monthStart, monthEnd]);
@@ -62,12 +64,18 @@ export function LookupCalendarPage() {
   }, [loadRates]);
 
   // Re-fetch when Page 4 (or Page 3 approval) bumps the daily_rates version.
+  // Listen to BOTH the custom window event (same-tab) and storage (cross-tab).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'rt_daily_rates_version') loadRates();
     };
+    const onCustom = () => loadRates();
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(RATES_UPDATED_EVENT, onCustom);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(RATES_UPDATED_EVENT, onCustom);
+    };
   }, [loadRates]);
 
   // Build map: date -> rate_code -> DailyRate, filtered by room type
@@ -95,15 +103,25 @@ export function LookupCalendarPage() {
       const arr = ratesByDate.get(dateISO) || [];
       if (arr.length === 0)
         return { date: dateISO, roomType: null, rateCode: null, selling: null, net: null, b2b: null };
+      // arr is already ordered by updated_at DESC from the query, so the first
+      // row for a given (date, room_type_id, rate_code) is the latest version.
+      // Deduplicate by (room_type_id, rate_code) keeping the first occurrence.
+      const seen = new Set<string>();
+      const latest = arr.filter((r) => {
+        const key = `${r.room_type_id}|${r.rate_code}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       let pick: DailyRate | null = null;
       if (roomTypeId === 'all') {
         // lowest selling price — B2B price is NEVER considered in this benchmark
-        pick = arr.reduce((best, r) => {
+        pick = latest.reduce((best, r) => {
           if (!best) return r;
           return Number(r.selling_price) < Number(best.selling_price) ? r : best;
         }, null as DailyRate | null);
       } else {
-        pick = arr[0];
+        pick = latest[0];
       }
       if (!pick)
         return { date: dateISO, roomType: null, rateCode: null, selling: null, net: null, b2b: null };

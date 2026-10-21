@@ -1,35 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Trash2, Plus, CalendarRange } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { useRoomTypes } from '@/lib/useRoomTypes';
-import type { DailyRate, Hotel, PriceMatrix } from '@/types';
+import type { DailyRate, DateRange, Hotel, PriceMatrix } from '@/types';
 import { Button, Select, Card, Field, Badge, EmptyState, Modal, Input } from '@/components/ui';
 import { formatVND, normCode, toDMY, toISODate, dateRangeISO, excelSerialToDate } from '@/lib/format';
-
-/**
- * Page 4 — Cập nhật giá (Admin only).
- * The `dailyRatesVersion` in localStorage is bumped after every save/import so
- * Page 1 (Lookup Calendar) can detect the change and re-fetch when visited.
- */
-const DAILY_RATES_VERSION_KEY = 'rt_daily_rates_version';
-
-function bumpDailyRatesVersion() {
-  try {
-    const cur = Number(localStorage.getItem(DAILY_RATES_VERSION_KEY) || '0');
-    localStorage.setItem(DAILY_RATES_VERSION_KEY, String(cur + 1));
-  } catch {
-    // ignore
-  }
-}
+import { notifyRatesUpdated, expandDateRanges, totalDaysInRanges } from '@/lib/rateSync';
 
 export function DailyRateUpdatePage() {
   const { hotels } = useAuth();
   const [hotelId, setHotelId] = useState('');
   const [roomTypeId, setRoomTypeId] = useState('');
   const [rateCode, setRateCode] = useState('');
-  const [startDate, setStartDate] = useState(toISODate(new Date()));
-  const [endDate, setEndDate] = useState(toISODate(new Date()));
+  const [dateRanges, setDateRanges] = useState<DateRange[]>([
+    { start: toISODate(new Date()), end: toISODate(new Date()) },
+  ]);
   const [sell, setSell] = useState('');
   const [net, setNet] = useState('');
   const [cms, setCms] = useState('');
@@ -72,9 +59,6 @@ export function DailyRateUpdatePage() {
     })();
   }, [hotelId]);
 
-  // Rate codes available for the selected room type, plus the special
-  // "Dynamic" option that bypasses the price matrix lookup.
-  // Normalization: .trim().toUpperCase() applied to every code.
   const rateCodes = useMemo(() => {
     const set = new Set<string>();
     matrix
@@ -85,7 +69,6 @@ export function DailyRateUpdatePage() {
 
   const isDynamic = rateCode === 'Dynamic';
 
-  // Re-render logic: when room type changes, auto-select the first rate code.
   useEffect(() => {
     if (rateCodes.length > 0) {
       setRateCode(rateCodes[0]);
@@ -99,9 +82,6 @@ export function DailyRateUpdatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomTypeId, rateCodes.join('|')]);
 
-  // When rate code changes, auto-fill the price inputs from price_matrix.
-  // "Dynamic" bypasses the matrix lookup and leaves the inputs blank for manual entry.
-  // Normalization: .trim().toUpperCase() on comparison.
   useEffect(() => {
     if (isDynamic) {
       setSell('');
@@ -136,7 +116,7 @@ export function DailyRateUpdatePage() {
       .from('daily_rates')
       .select('*')
       .eq('hotel_id', hotelId)
-      .order('date', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(200);
     setRows((data as DailyRate[]) || []);
     setLoading(false);
@@ -149,39 +129,39 @@ export function DailyRateUpdatePage() {
   const hotelName = hotels.find((h) => h.id === hotelId)?.name || '';
   const rtName = roomTypes.find((rt) => rt.id === roomTypeId)?.name || '';
 
-  // ---------- Save (bulk UPSERT) ----------
+  const totalDays = useMemo(() => totalDaysInRanges(dateRanges), [dateRanges]);
+
+  // ---------- Date range helpers ----------
+  const updateRange = (idx: number, field: 'start' | 'end', value: string) => {
+    setDateRanges((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+  const addRange = () => {
+    const last = dateRanges[dateRanges.length - 1];
+    const nextStart = last?.end || toISODate(new Date());
+    setDateRanges((prev) => [...prev, { start: nextStart, end: nextStart }]);
+  };
+  const removeRange = (idx: number) => {
+    if (dateRanges.length <= 1) return;
+    setDateRanges((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ---------- Save (batch UPSERT with native upsert) ----------
   const save = async () => {
     setMsg(null);
-    if (!hotelId || !roomTypeId || !rateCode || !startDate || !endDate) {
-      setMsg({ kind: 'err', text: 'Vui lòng chọn đủ khách sạn, loại phòng, mã giá và ngày.' });
+    if (!hotelId || !roomTypeId || !rateCode) {
+      setMsg({ kind: 'err', text: 'Vui lòng chọn đủ khách sạn, loại phòng và mã giá.' });
       return;
     }
-    if (startDate > endDate) {
-      setMsg({ kind: 'err', text: 'Từ ngày phải trước hoặc bằng Đến ngày.' });
+    if (sell === '' || net === '' || cms === '') {
+      setMsg({ kind: 'err', text: 'Vui lòng nhập đủ 3 mức giá (Giá bán, Giá thu về, Giá CMS).' });
       return;
     }
-    if (isDynamic) {
-      if (sell === '' || net === '' || cms === '') {
-        setMsg({ kind: 'err', text: 'Vui lòng nhập đủ 3 mức giá (Giá bán, Giá thu về, Giá CMS).' });
-        return;
-      }
-    } else {
-      if (sell === '' || net === '' || cms === '') {
-        setMsg({ kind: 'err', text: 'Vui lòng nhập đủ 3 mức giá (Giá bán, Giá thu về, Giá CMS).' });
-        return;
-      }
+    const dates = expandDateRanges(dateRanges);
+    if (dates.length === 0) {
+      setMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một giai đoạn ngày hợp lệ.' });
+      return;
     }
     setSaving(true);
-    const dates = dateRangeISO(startDate, endDate);
-    // UPSERT via delete-then-insert for the same (hotel, room_type, rate_code, date range)
-    await supabase
-      .from('daily_rates')
-      .delete()
-      .eq('hotel_id', hotelId)
-      .eq('room_type_id', roomTypeId)
-      .eq('rate_code', rateCode)
-      .gte('date', startDate)
-      .lte('date', endDate);
     const insertRows = dates.map((d) => ({
       hotel_id: hotelId,
       room_type_id: roomTypeId,
@@ -192,7 +172,9 @@ export function DailyRateUpdatePage() {
       cms_price: Number(cms),
       b2b_price: b2b.trim() === '' ? null : Number(b2b) || null,
     }));
-    const { error } = await supabase.from('daily_rates').insert(insertRows);
+    const { error } = await supabase
+      .from('daily_rates')
+      .upsert(insertRows, { onConflict: 'hotel_id,room_type_id,date,rate_code' });
     if (error) {
       setMsg({ kind: 'err', text: `Lỗi lưu giá: ${error.message}` });
     } else {
@@ -200,7 +182,7 @@ export function DailyRateUpdatePage() {
         kind: 'ok',
         text: `Đã lưu ${dates.length} ngày cho ${rtName} — ${rateCode}. Trang tra cứu sẽ cập nhật ngay.`,
       });
-      bumpDailyRatesVersion();
+      notifyRatesUpdated();
       await loadRates();
     }
     setSaving(false);
@@ -213,15 +195,7 @@ export function DailyRateUpdatePage() {
       ['Superior Double', 'BAR 1', toDMY(toISODate(new Date())), 990000, 841500, 760000, 750000],
       ['Deluxe Twin', 'BAR 3', toDMY(toISODate(new Date())), 1100000, 935000, 850000, ''],
     ]);
-    ws['!cols'] = [
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-    ];
+    ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Daily Rates');
     const arr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -263,17 +237,12 @@ export function DailyRateUpdatePage() {
         const rc = normCode(String(r['Rate Code'] ?? r['rate_code'] ?? ''));
         const dateRaw = r['Date'] ?? r['date'];
         const d = excelSerialToDate(dateRaw);
-        const sp =
-          Number(String(r['Selling Price'] ?? r['selling_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
-        const np =
-          Number(String(r['Net Price'] ?? r['net_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
-        const cp =
-          Number(String(r['CMS Price'] ?? r['cms_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
+        const sp = Number(String(r['Selling Price'] ?? r['selling_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
+        const np = Number(String(r['Net Price'] ?? r['net_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
+        const cp = Number(String(r['CMS Price'] ?? r['cms_price'] ?? '0').replace(/[^\d.-]/g, '')) || 0;
         const b2bRaw = String(r['B2B Price'] ?? r['b2b_price'] ?? '').trim();
         const b2bVal = b2bRaw === '' ? null : Number(b2bRaw.replace(/[^\d.-]/g, '')) || null;
-        const rt = roomTypes.find(
-          (x) => x.name.trim().toLowerCase() === rtNameRaw.toLowerCase(),
-        );
+        const rt = roomTypes.find((x) => x.name.trim().toLowerCase() === rtNameRaw.toLowerCase());
         if (!rt || !d || !rc) {
           skipped++;
           continue;
@@ -291,25 +260,14 @@ export function DailyRateUpdatePage() {
       }
 
       if (toInsert.length === 0) {
-        setImportMsg({
-          kind: 'err',
-          text: 'Không có dòng hợp lệ. Kiểm tra tên loại phòng, mã giá và cột ngày.',
-        });
+        setImportMsg({ kind: 'err', text: 'Không có dòng hợp lệ. Kiểm tra tên loại phòng, mã giá và cột ngày.' });
         setImportBusy(false);
         return;
       }
 
-      // UPSERT via delete-then-insert per (room_type_id, rate_code, date)
-      for (const row of toInsert) {
-        await supabase
-          .from('daily_rates')
-          .delete()
-          .eq('hotel_id', row.hotel_id)
-          .eq('room_type_id', row.room_type_id)
-          .eq('rate_code', row.rate_code)
-          .eq('date', row.date);
-      }
-      const { error } = await supabase.from('daily_rates').insert(toInsert);
+      const { error } = await supabase
+        .from('daily_rates')
+        .upsert(toInsert, { onConflict: 'hotel_id,room_type_id,date,rate_code' });
       if (error) {
         setImportMsg({ kind: 'err', text: `Lỗi nhập: ${error.message}` });
       } else {
@@ -318,7 +276,7 @@ export function DailyRateUpdatePage() {
             ? `Đã nhập ${toInsert.length} dòng thành công (bỏ qua ${skipped} dòng không hợp lệ).`
             : `Đã nhập ${toInsert.length} dòng thành công.`;
         setImportMsg({ kind: 'ok', text: txt });
-        bumpDailyRatesVersion();
+        notifyRatesUpdated();
         await loadRates();
       }
     } catch (e) {
@@ -329,13 +287,12 @@ export function DailyRateUpdatePage() {
 
   return (
     <div className="space-y-4 fade-in">
-      {/* Bộ công cụ phân bổ giá tự động */}
       <Card className="p-4">
         <div className="mb-3">
           <h2 className="text-base font-semibold text-navy-800">Bộ công cụ phân bổ giá tự động</h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Field label="Khách sạn">
             <Select value={hotelId} onChange={setHotelId}>
               {hotels.map((h: Hotel) => (
@@ -366,23 +323,63 @@ export function DailyRateUpdatePage() {
               <option value="Dynamic">Dynamic</option>
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Từ ngày">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-white border border-navy-200 rounded-lg px-2 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-              />
-            </Field>
-            <Field label="Đến ngày">
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-white border border-navy-200 rounded-lg px-2 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
-              />
-            </Field>
+        </div>
+
+        {/* Multi-date range selector */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-navy-700">
+              <CalendarRange size={16} className="text-gold-600" />
+              Giai đoạn áp dụng
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-full px-2.5 py-1">
+                Tổng: {totalDays} ngày được chọn
+              </span>
+              <Button variant="subtle" size="sm" onClick={addRange}>
+                <Plus size={14} /> Thêm giai đoạn
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {dateRanges.map((range, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-2 bg-navy-50/50 border border-navy-100 rounded-lg p-2"
+              >
+                <span className="text-xs font-semibold text-navy-400 w-6 text-center flex-shrink-0">
+                  {idx + 1}
+                </span>
+                <div className="grid grid-cols-2 gap-2 flex-1">
+                  <div>
+                    <label className="text-[10px] text-navy-400 uppercase tracking-wide">Từ ngày</label>
+                    <input
+                      type="date"
+                      value={range.start}
+                      onChange={(e) => updateRange(idx, 'start', e.target.value)}
+                      className="w-full bg-white border border-navy-200 rounded-lg px-2 py-1.5 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-navy-400 uppercase tracking-wide">Đến ngày</label>
+                    <input
+                      type="date"
+                      value={range.end}
+                      onChange={(e) => updateRange(idx, 'end', e.target.value)}
+                      className="w-full bg-white border border-navy-200 rounded-lg px-2 py-1.5 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeRange(idx)}
+                  disabled={dateRanges.length <= 1}
+                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                  title="Xoá giai đoạn này"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -402,7 +399,7 @@ export function DailyRateUpdatePage() {
         </div>
         {isDynamic && (
           <div className="mt-2 text-xs text-gold-700 bg-gold-50 border border-gold-100 rounded-lg px-3 py-2">
-            Đang ở chế độ Dynamic — bạn tự nhập các mức giá, không lấy từ ma trận giá. Nhấn “Lưu Lịch Giá” để lưu thẳng vào lịch giá với mã <span className="font-semibold">Dynamic</span>.
+            Đang ở chế độ Dynamic — bạn tự nhập các mức giá, không lấy từ ma trận giá. Nhấn "Lưu Lịch Giá" để lưu thẳng vào lịch giá với mã <span className="font-semibold">Dynamic</span>.
           </div>
         )}
 
@@ -431,7 +428,6 @@ export function DailyRateUpdatePage() {
         </div>
       </Card>
 
-      {/* Bảng quản lý lịch giá */}
       <Card className="overflow-hidden">
         <div className="px-4 py-3 border-b border-navy-50 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-navy-800">Bảng quản lý lịch giá</h3>
@@ -440,9 +436,7 @@ export function DailyRateUpdatePage() {
         <div className="overflow-x-auto thin-scroll">
           {rows.length === 0 ? (
             <div className="p-4">
-              <EmptyState
-                message={loading ? 'Đang tải dữ liệu…' : 'Chưa có lịch giá cho khách sạn này.'}
-              />
+              <EmptyState message={loading ? 'Đang tải dữ liệu…' : 'Chưa có lịch giá cho khách sạn này.'} />
             </div>
           ) : (
             <table className="w-full text-sm min-w-[820px]">
@@ -462,9 +456,7 @@ export function DailyRateUpdatePage() {
                   const rt = roomTypes.find((x) => x.id === r.room_type_id);
                   return (
                     <tr key={r.id} className="border-t border-navy-50">
-                      <td className="px-3 py-2.5 mono-num text-navy-700 whitespace-nowrap">
-                        {toDMY(r.date)}
-                      </td>
+                      <td className="px-3 py-2.5 mono-num text-navy-700 whitespace-nowrap">{toDMY(r.date)}</td>
                       <td className="px-3 py-2.5 text-navy-700">{rt?.name || '—'}</td>
                       <td className="px-3 py-2.5">
                         <Badge tone="neutral">{r.rate_code}</Badge>
@@ -490,12 +482,7 @@ export function DailyRateUpdatePage() {
         </div>
       </Card>
 
-      {/* Import modal */}
-      <Modal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        title="Nhập Excel — Lịch giá hàng ngày"
-      >
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Nhập Excel — Lịch giá hàng ngày">
         <div className="space-y-4">
           <p className="text-sm text-navy-600">
             Tập tin Excel cần có các cột:{' '}
