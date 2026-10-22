@@ -52,7 +52,7 @@ export function Header({
             <div className="flex items-center flex-shrink-0">
               <Logo />
               <div className="leading-tight">
-                <div className="font-bold text-sm sm:text-base text-black">RateTracker AI</div>
+                <div className="font-bold text-sm sm:text-base text-black">RateTracker</div>
                 <div className="text-[10px] text-black/60 -mt-0.5">by Jenius</div>
               </div>
             </div>
