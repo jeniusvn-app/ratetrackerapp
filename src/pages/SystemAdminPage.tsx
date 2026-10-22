@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
+  BedDouble,
   Building2,
   Download,
   Hotel as HotelIcon,
@@ -128,6 +129,51 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
 
   const [rtName, setRtName] = useState('');
   const [rtSaving, setRtSaving] = useState(false);
+
+  // Physical room inventory — persisted to localStorage, keyed by hotelId
+  const [invDraft, setInvDraft] = useState<Map<string, string>>(new Map());
+  const [savingInv, setSavingInv] = useState(false);
+  const [invMsg, setInvMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const loadInvDraft = useCallback(() => {
+    const raw = localStorage.getItem('mini_rms_physical_inventory');
+    const allData: Record<string, Record<string, number>> = raw ? JSON.parse(raw) : {};
+    const hotelInv = allData[selectedHotelId] || {};
+    const draft = new Map<string, string>();
+    roomTypes.forEach((rt) => {
+      draft.set(rt.id, String(hotelInv[rt.id] ?? 0));
+    });
+    setInvDraft(draft);
+  }, [selectedHotelId, roomTypes]);
+
+  useEffect(() => {
+    loadInvDraft();
+  }, [loadInvDraft]);
+
+  const invDraftTotal = useMemo(() => {
+    let sum = 0;
+    invDraft.forEach((v) => (sum += Number(v) || 0));
+    return sum;
+  }, [invDraft]);
+
+  const saveInventory = () => {
+    setSavingInv(true);
+    setInvMsg(null);
+    try {
+      const raw = localStorage.getItem('mini_rms_physical_inventory');
+      const allData: Record<string, Record<string, number>> = raw ? JSON.parse(raw) : {};
+      const hotelInv: Record<string, number> = {};
+      roomTypes.forEach((rt) => {
+        hotelInv[rt.id] = Number(invDraft.get(rt.id) || 0) || 0;
+      });
+      allData[selectedHotelId] = hotelInv;
+      localStorage.setItem('mini_rms_physical_inventory', JSON.stringify(allData));
+      setInvMsg({ kind: 'ok', text: 'Đã lưu cấu hình phòng vật lý thành công.' });
+    } catch (e) {
+      setInvMsg({ kind: 'err', text: `Lỗi: ${(e as Error).message}` });
+    }
+    setSavingInv(false);
+  };
 
   const loadHotels = useCallback(async () => {
     await refreshHotels();
@@ -428,6 +474,50 @@ function HotelsTab({ onToast }: { onToast: (t: Toast) => void }) {
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      {/* Physical Room Inventory config — per room type, saved to localStorage */}
+      <Card className="p-4 lg:col-span-3 space-y-3">
+        <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
+          <BedDouble size={16} className="text-gold-600" />
+          Cấu hình Phòng Vật Lý (Physical Room Inventory)
+        </div>
+        <p className="text-xs text-navy-400">
+          Nhập số lượng phòng vật lý cho từng loại phòng. Tổng sức chứa khách sạn sẽ tự động tính bằng tổng các loại phòng. Dữ liệu được lưu vào trình duyệt và dùng chung cho các trang Analytics, Lưới 30 ngày và PU Report.
+        </p>
+
+        {roomTypes.length === 0 ? (
+          <EmptyState message="Chưa có loại phòng cho khách sạn này." />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {roomTypes.map((rt) => (
+                <Field key={rt.id} label={rt.name}>
+                  <Input
+                    type="number"
+                    value={invDraft.get(rt.id) ?? '0'}
+                    onChange={(v) => setInvDraft((prev) => new Map(prev).set(rt.id, v))}
+                    placeholder="0"
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-lg px-3 py-2">
+                <BedDouble size={16} className="text-gold-600" />
+                Tổng sức chứa: {invDraftTotal} phòng
+              </div>
+              <Button variant="gold" size="sm" onClick={saveInventory} disabled={savingInv || !selectedHotelId}>
+                <Save size={14} /> {savingInv ? 'Đang lưu…' : 'Lưu cấu hình'}
+              </Button>
+              {invMsg && (
+                <span className={`text-sm ${invMsg.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {invMsg.text}
+                </span>
+              )}
+            </div>
+          </>
         )}
       </Card>
 

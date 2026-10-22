@@ -2,20 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   BedDouble,
-  Settings2,
   TrendingUp,
   AlertTriangle,
   CheckCircle2,
-  Save,
   Clock,
   CalendarRange,
   CalendarDays,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRoomTypes } from '@/lib/useRoomTypes';
-import { useAuth, canManageInventory } from '@/auth/AuthContext';
+import { useAuth } from '@/auth/AuthContext';
 import type { RoomType } from '@/types';
-import { Button, Card, Field, Input, EmptyState, Badge } from '@/components/ui';
+import { Card, Field, EmptyState, Badge } from '@/components/ui';
 import { formatVND, toISODate, toDMY } from '@/lib/format';
 
 const WEEKDAY_VI = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -36,11 +34,6 @@ interface PickupRecord {
   quantity: number | null;
   hotel_id: string | null;
   cancel_date: string | null;
-}
-
-interface InventoryConfig {
-  room_type_id: string;
-  physical_capacity: number;
 }
 
 function roomNights(r: PickupRecord): number {
@@ -83,12 +76,7 @@ interface DayCellData {
 
 export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; manualSold: Map<string, number> }) {
   const { roomTypes } = useRoomTypes(hotelId || null);
-  const { user } = useAuth();
-  const canEditInventory = canManageInventory(user);
   const [inventory, setInventory] = useState<Map<string, number>>(new Map());
-  const [inventoryDraft, setInventoryDraft] = useState<Map<string, string>>(new Map());
-  const [savingInventory, setSavingInventory] = useState(false);
-  const [invMsg, setInvMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [records, setRecords] = useState<PickupRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -97,28 +85,21 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
   const [analyticsTo, setAnalyticsTo] = useState('');
   const [analyticsSource, setAnalyticsSource] = useState('all');
 
-  // Load inventory config
-  const loadInventory = useCallback(async () => {
+  // Load inventory from localStorage (single source of truth — set in Admin/Hotel Config)
+  const loadInventory = useCallback(() => {
     if (!hotelId) {
       setInventory(new Map());
-      setInventoryDraft(new Map());
       return;
     }
-    const { data } = await supabase
-      .from('room_inventory_config')
-      .select('room_type_id, physical_capacity')
-      .eq('hotel_id', hotelId);
+    const raw = localStorage.getItem('mini_rms_physical_inventory');
+    const allData: Record<string, Record<string, number>> = raw ? JSON.parse(raw) : {};
+    const hotelInv = allData[hotelId] || {};
     const map = new Map<string, number>();
-    ((data as InventoryConfig[]) || []).forEach((row) => {
-      map.set(row.room_type_id, row.physical_capacity);
+    roomTypes.forEach((rt) => {
+      const cap = hotelInv[rt.id] ?? 0;
+      if (cap > 0) map.set(rt.id, cap);
     });
     setInventory(map);
-    const draftMap = new Map<string, string>();
-    roomTypes.forEach((rt) => {
-      const cap = map.get(rt.id) ?? 0;
-      draftMap.set(rt.id, String(cap));
-    });
-    setInventoryDraft(draftMap);
   }, [hotelId, roomTypes]);
 
   // Load all pickup records (date-range filtering happens client-side for analytics)
@@ -142,46 +123,11 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
     loadRecords();
   }, [loadInventory, loadRecords]);
 
-  // Update draft when room types or inventory change
-  useEffect(() => {
-    const draftMap = new Map<string, string>();
-    roomTypes.forEach((rt) => {
-      const cap = inventory.get(rt.id) ?? 0;
-      draftMap.set(rt.id, String(cap));
-    });
-    setInventoryDraft(draftMap);
-  }, [roomTypes, inventory]);
-
   const totalRooms = useMemo(() => {
     let sum = 0;
     inventory.forEach((cap) => (sum += cap));
     return sum;
   }, [inventory]);
-
-  // Save inventory config
-  const saveInventory = async () => {
-    setSavingInventory(true);
-    setInvMsg(null);
-    try {
-      const rows = roomTypes.map((rt) => ({
-        hotel_id: hotelId,
-        room_type_id: rt.id,
-        physical_capacity: Number(inventoryDraft.get(rt.id) || 0) || 0,
-      }));
-      const { error } = await supabase
-        .from('room_inventory_config')
-        .upsert(rows, { onConflict: 'hotel_id,room_type_id' });
-      if (error) {
-        setInvMsg({ kind: 'err', text: `Lỗi lưu cấu hình: ${error.message}` });
-      } else {
-        setInvMsg({ kind: 'ok', text: 'Đã lưu cấu hình phòng vật lý thành công.' });
-        await loadInventory();
-      }
-    } catch (e) {
-      setInvMsg({ kind: 'err', text: `Lỗi: ${(e as Error).message}` });
-    }
-    setSavingInventory(false);
-  };
 
   // Build 30-day arrival matrix (from full records set, filtered to next 30 days)
   const next30Start = useMemo(() => toISODate(new Date()), []);
@@ -399,86 +345,11 @@ export function MiniRMSAnalytics({ hotelId, manualSold }: { hotelId: string; man
     };
   }, [analyticsRecords]);
 
-  const draftTotalRooms = useMemo(() => {
-    let sum = 0;
-    inventoryDraft.forEach((v) => (sum += Number(v) || 0));
-    return sum;
-  }, [inventoryDraft]);
-
   return (
     <div className="space-y-4">
-      {/* ============ INVENTORY CONFIGURATION ============ */}
-      <Card className="p-4 space-y-3">
-        <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm">
-          <Settings2 size={16} className="text-gold-600" />
-          Cấu hình Phòng Vật Lý (Physical Room Inventory)
-        </div>
-        <p className="text-xs text-navy-400">
-          Nhập số lượng phòng vật lý cho từng loại phòng. Tổng sức chứa khách sạn sẽ tự động tính bằng tổng các loại phòng.
-        </p>
-
-        {roomTypes.length === 0 ? (
-          <EmptyState message="Chưa có loại phòng cho khách sạn này." />
-        ) : canEditInventory ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {roomTypes.map((rt: RoomType) => (
-                <Field key={rt.id} label={rt.name}>
-                  <Input
-                    type="number"
-                    value={inventoryDraft.get(rt.id) ?? '0'}
-                    onChange={(v) => setInventoryDraft((prev) => new Map(prev).set(rt.id, v))}
-                    placeholder="0"
-                  />
-                </Field>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="inline-flex items-center gap-2 text-sm font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-lg px-3 py-2">
-                <BedDouble size={16} className="text-gold-600" />
-                Tổng sức chứa: {draftTotalRooms} phòng
-              </div>
-              <Button variant="gold" size="sm" onClick={saveInventory} disabled={savingInventory || !hotelId}>
-                <Save size={14} /> {savingInventory ? 'Đang lưu…' : 'Lưu cấu hình'}
-              </Button>
-              {invMsg && (
-                <span
-                  className={`text-sm ${invMsg.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}
-                >
-                  {invMsg.text}
-                </span>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {roomTypes.map((rt: RoomType) => (
-                <Field key={rt.id} label={rt.name}>
-                  <Input
-                    type="number"
-                    value={inventoryDraft.get(rt.id) ?? '0'}
-                    disabled
-                    onChange={() => {}}
-                    placeholder="0"
-                  />
-                </Field>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="inline-flex items-center gap-2 text-sm font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-lg px-3 py-2">
-                <BedDouble size={16} className="text-gold-600" />
-                Tổng sức chứa: {draftTotalRooms} phòng
-              </div>
-              <span className="text-xs text-navy-400">Bạn không có quyền chỉnh sửa cấu hình phòng vật lý.</span>
-            </div>
-          </>
-        )}
-      </Card>
-
       {totalRooms === 0 ? (
         <Card className="p-4">
-          <EmptyState message="Vui lòng cấu hình số phòng vật lý ở trên để hiển thị lưới arrival và occupancy." />
+          <EmptyState message="Vui lòng cấu hình số phòng vật lý trong trang Quản trị (Cấu hình khách sạn) để hiển thị lưới arrival và occupancy." />
         </Card>
       ) : (
         <>
