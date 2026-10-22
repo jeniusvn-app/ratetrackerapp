@@ -141,25 +141,27 @@ export function LookupCalendarPage() {
       const arr = ratesByDate.get(dateISO) || [];
       if (arr.length === 0)
         return { date: dateISO, roomType: null, rateCode: null, selling: null, net: null, b2b: null };
-      // arr is already ordered by updated_at DESC from the query, so the first
-      // row for a given (date, room_type_id, rate_code) is the latest version.
-      // Deduplicate by (room_type_id, rate_code) keeping the first occurrence.
-      const seen = new Set<string>();
-      const latest = arr.filter((r) => {
-        const key = `${r.room_type_id}|${r.rate_code}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
+      // arr is already ordered by updated_at DESC from the query.
+      // For each room type, we want ONLY the single record with the
+      // newest updated_at — regardless of how many rate codes exist.
+      // Deduplicate by room_type_id keeping the first (latest) occurrence.
+      const seenRT = new Set<string>();
+      const latestPerRoomType = arr.filter((r) => {
+        if (seenRT.has(r.room_type_id)) return false;
+        seenRT.add(r.room_type_id);
         return true;
       });
       let pick: DailyRate | null = null;
       if (roomTypeId === 'all') {
-        // lowest selling price — B2B price is NEVER considered in this benchmark
-        pick = latest.reduce((best, r) => {
+        // lowest selling price among the latest record of each room type
+        // — B2B price is NEVER considered in this benchmark
+        pick = latestPerRoomType.reduce((best, r) => {
           if (!best) return r;
           return Number(r.selling_price) < Number(best.selling_price) ? r : best;
         }, null as DailyRate | null);
       } else {
-        pick = latest[0];
+        // single room type selected — the latest record for that room type
+        pick = latestPerRoomType[0] || null;
       }
       if (!pick)
         return { date: dateISO, roomType: null, rateCode: null, selling: null, net: null, b2b: null };
