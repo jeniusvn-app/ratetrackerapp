@@ -26,6 +26,9 @@ export function DailyRateUpdatePage() {
   const [dateRanges, setDateRanges] = useState<DateRange[]>([
     { start: toISODate(new Date()), end: toISODate(new Date()) },
   ]);
+  // Day-of-week selection: [Sun, Mon, Tue, Wed, Thu, Fri, Sat] (JS getDay index)
+  const [selectedDOW, setSelectedDOW] = useState<boolean[]>([true, true, true, true, true, true, true]);
+  const DOW_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   const [priceOverrides, setPriceOverrides] = useState<Map<string, RoomPriceOverride>>(new Map());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -203,9 +206,18 @@ export function DailyRateUpdatePage() {
       setMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một loại phòng.' });
       return;
     }
-    const dates = expandDateRanges(dateRanges);
-    if (dates.length === 0) {
+    const allDates = expandDateRanges(dateRanges);
+    if (allDates.length === 0) {
       setMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một giai đoạn ngày hợp lệ.' });
+      return;
+    }
+    // Filter dates by selected days of the week
+    const dates = allDates.filter((d) => {
+      const dow = new Date(d + 'T00:00:00').getDay();
+      return selectedDOW[dow];
+    });
+    if (dates.length === 0) {
+      setMsg({ kind: 'err', text: 'Không có ngày nào trong giai đoạn khớp với thứ được chọn. Vui lòng tích ít nhất một thứ.' });
       return;
     }
     // Validate every target room type has required prices
@@ -488,6 +500,46 @@ export function DailyRateUpdatePage() {
                 </button>
               </div>
             ))}
+          </div>
+          {/* Day-of-week selector */}
+          <div className="mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-sm font-medium text-navy-700">Áp dụng theo thứ trong tuần</label>
+              <button
+                onClick={() => setSelectedDOW([true, true, true, true, true, true, true])}
+                className="text-xs text-navy-500 hover:text-navy-700 underline"
+              >
+                Chọn tất cả
+              </button>
+              <button
+                onClick={() => setSelectedDOW([false, false, false, false, false, false, false])}
+                className="text-xs text-navy-500 hover:text-navy-700 underline"
+              >
+                Bỏ tất cả
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {DOW_LABELS.map((label, dowIdx) => (
+                <label
+                  key={dowIdx}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-sm font-medium cursor-pointer transition-colors ${
+                    selectedDOW[dowIdx]
+                      ? 'bg-gold-50 border-gold-200 text-gold-700'
+                      : 'bg-white border-navy-200 text-navy-400 hover:bg-navy-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedDOW[dowIdx]}
+                    onChange={() =>
+                      setSelectedDOW((prev) => prev.map((v, i) => (i === dowIdx ? !v : v)))
+                    }
+                    className="accent-[#E9967A]"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 
