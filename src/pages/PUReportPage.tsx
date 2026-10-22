@@ -1121,7 +1121,7 @@ export function PUReportPage() {
       <Card className="p-4 space-y-4">
         <div className="flex items-center gap-2 text-navy-800 font-semibold text-sm border-b border-navy-50 pb-2">
           <Database size={16} className="text-gold-600" />
-          Trung tâm nhập dữ liệu — 3 module
+          Trung tâm nhập dữ liệu
         </div>
 
         {/* Module 1 & 2: Import buttons */}
@@ -1190,7 +1190,7 @@ export function PUReportPage() {
         <div className="rounded-lg border border-navy-200 bg-white p-3 space-y-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-navy-600 uppercase tracking-wide">
             <ClipboardList size={14} className="text-gold-600" />
-            Module 3: Nhập thủ công Rooms Sold thực tế (30 ngày)
+            Nhập thủ công Rooms Sold thực tế (30 ngày)
           </div>
           {manualMsg && (
             <div className={`text-xs ${manualMsg.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>{manualMsg.text}</div>
