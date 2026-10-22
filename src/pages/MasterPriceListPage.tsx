@@ -156,7 +156,7 @@ export function MasterPriceListPage() {
       .from('master_price_list')
       .select('*')
       .eq('hotel_name', hotelName)
-      .order('id', { ascending: true });;
+      .order('id', { ascending: true });
     if (!error) setRows((data as Row[]) || []);
     else setRows([]);
     setLoading(false);
