@@ -106,10 +106,10 @@ export interface DateRange {
 export interface RateChangeRequest {
   id: string;
   hotel_id: string;
-  start_date: string;
-  end_date: string;
+  start_date: string | null;
+  end_date: string | null;
   date_ranges: DateRange[] | null;
-  rate_code: string;
+  rate_code: string | null;
   status: 'Pending' | 'Approved' | 'Rejected';
   created_by_user_id: string | null;
   created_at: string;
@@ -117,6 +117,7 @@ export interface RateChangeRequest {
   selling_price: number | null;
   net_price: number | null;
   b2b_price: number | null;
+  other_text: string | null;
   rejection_reason: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;

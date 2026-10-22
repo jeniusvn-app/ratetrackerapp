@@ -25,6 +25,7 @@ export function RateRequestsPage() {
   const [dynSell, setDynSell] = useState('');
   const [dynNet, setDynNet] = useState('');
   const [dynB2b, setDynB2b] = useState('');
+  const [otherText, setOtherText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -91,6 +92,7 @@ export function RateRequestsPage() {
   }, [loadRequests]);
 
   const isDynamic = rateCode === 'Dynamic';
+  const isOther = rateCode === 'Other';
   const totalDays = useMemo(() => totalDaysInRanges(dateRanges), [dateRanges]);
 
   // ---------- Date range helpers ----------
@@ -110,12 +112,22 @@ export function RateRequestsPage() {
   // ---------- Submit ----------
   const submit = async () => {
     setFormMsg(null);
-    if (!formHotelId || !rateCode) {
-      setFormMsg({ kind: 'err', text: 'Vui lòng điền đầy đủ các trường.' });
+    if (!formHotelId) {
+      setFormMsg({ kind: 'err', text: 'Vui lòng chọn khách sạn.' });
       return;
     }
-    const dates = expandDateRanges(dateRanges);
-    if (dates.length === 0) {
+    if (isOther) {
+      if (!otherText.trim()) {
+        setFormMsg({ kind: 'err', text: 'Vui lòng nhập nội dung yêu cầu khác.' });
+        return;
+      }
+    } else if (!rateCode) {
+      setFormMsg({ kind: 'err', text: 'Vui lòng chọn mã giá.' });
+      return;
+    }
+    const validRanges = dateRanges.filter((r) => r.start && r.end && r.start <= r.end);
+    const dates = expandDateRanges(validRanges);
+    if (!isOther && dates.length === 0) {
       setFormMsg({ kind: 'err', text: 'Vui lòng chọn ít nhất một giai đoạn ngày hợp lệ.' });
       return;
     }
@@ -129,20 +141,21 @@ export function RateRequestsPage() {
         return;
       }
     }
-    const bounds = rangeBounds(dateRanges);
+    const bounds = rangeBounds(validRanges);
     setSubmitting(true);
     const payload: Record<string, unknown> = {
       hotel_id: formHotelId,
       start_date: bounds.start,
       end_date: bounds.end,
-      date_ranges: dateRanges.filter((r) => r.start && r.end && r.start <= r.end),
-      rate_code: rateCode,
+      date_ranges: validRanges.length > 0 ? validRanges : null,
+      rate_code: isOther ? null : rateCode,
       status: 'Pending',
       created_by_user_id: user?.id,
       room_type_ids: isDynamic ? selectedRoomTypeIds : null,
       selling_price: isDynamic && dynSell !== '' ? Number(dynSell) : null,
       net_price: isDynamic && dynNet !== '' ? Number(dynNet) : null,
       b2b_price: isDynamic && dynB2b !== '' ? Number(dynB2b) : null,
+      other_text: isOther ? otherText.trim() : null,
     };
     const { error } = await supabase.from('rate_change_requests').insert(payload);
     if (error) {
@@ -151,27 +164,33 @@ export function RateRequestsPage() {
       return;
     }
     const hotelName = hotelNameById(formHotelId);
-    const effectiveDate = dateRanges
-      .filter((r) => r.start && r.end && r.start <= r.end)
+    const effectiveDate = validRanges
       .map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`)
       .join('; ');
-    const roomTypeSummary = isDynamic
-      ? selectedRoomTypeIds
-          .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
-          .join(', ')
-      : rateCode;
+    const roomTypeSummary = isOther
+      ? 'Yêu cầu khác'
+      : isDynamic
+        ? selectedRoomTypeIds
+            .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
+            .join(', ')
+        : rateCode;
     const newRate = isDynamic
       ? [dynSell, dynNet, dynB2b].filter((v) => v !== '').join(' / ') || null
       : null;
+    const reasonText = isOther
+      ? `Yêu cầu khác: ${otherText.trim()}`
+      : isDynamic
+        ? 'Yêu cầu giá Dynamic'
+        : `Áp dụng mã giá ${rateCode}`;
     try {
       await sendRateRequestTelegramNotification({
         hotel_name: hotelName,
         room_type: roomTypeSummary,
-        effective_date: effectiveDate,
+        effective_date: effectiveDate || '—',
         old_rate: null,
         new_rate: newRate,
         requested_by: user?.username || '—',
-        reason: isDynamic ? 'Yêu cầu giá Dynamic' : `Áp dụng mã giá ${rateCode}`,
+        reason: reasonText,
         created_at: new Date().toISOString(),
       });
     } catch {
@@ -183,6 +202,7 @@ export function RateRequestsPage() {
     setDynSell('');
     setDynNet('');
     setDynB2b('');
+    setOtherText('');
     setDateRanges([{ start: toISODate(new Date()), end: toISODate(new Date()) }]);
     setSubmitting(false);
     await loadRequests();
@@ -198,13 +218,34 @@ export function RateRequestsPage() {
     setActingId(req.id);
     setToast(null);
     try {
-      const normTarget = normCode(req.rate_code);
+      const normTarget = req.rate_code ? normCode(req.rate_code) : '';
+
+      // "Other Request" — no rates to apply, just mark approved
+      if (normTarget === 'OTHER' || (!req.rate_code && req.other_text)) {
+        await supabase
+          .from('rate_change_requests')
+          .update({ status: 'Approved' })
+          .eq('id', req.id);
+        const dateText = req.date_ranges && req.date_ranges.length > 0
+          ? req.date_ranges.map((r) => `${toDMY(r.start)} → ${toDMY(r.end)}`).join('; ')
+          : '—';
+        await sendTelegramMessage(
+          `<b>YÊU CẦU ĐÃ ĐƯỢC DUYỆT</b>\n` +
+            `<b>Khách sạn:</b> ${hotelNameById(req.hotel_id)}\n` +
+            `<b>Loại:</b> Yêu cầu khác\n` +
+            `<b>Nội dung:</b> ${req.other_text || '—'}\n` +
+            `<b>Giai đoạn:</b> ${dateText}`,
+        );
+        setToast({ kind: 'ok', text: 'Đã duyệt yêu cầu khác.' });
+        await loadRequests();
+        return;
+      }
 
       // Use date_ranges if available, else fall back to start_date/end_date
       const ranges: DateRange[] =
         req.date_ranges && req.date_ranges.length > 0
           ? req.date_ranges
-          : [{ start: req.start_date, end: req.end_date }];
+          : [{ start: req.start_date || '', end: req.end_date || '' }];
       const dates = expandDateRanges(ranges);
       if (dates.length === 0) {
         setToast({ kind: 'err', text: 'Khoảng ngày không hợp lệ.' });
@@ -359,15 +400,17 @@ export function RateRequestsPage() {
     }
     try {
       const roomTypeSummary =
-        rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids)
-          ? rejectTarget.room_type_ids
-              .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
-              .join(', ')
-          : rejectTarget.rate_code;
+        !rejectTarget.rate_code && rejectTarget.other_text
+          ? 'Yêu cầu khác'
+          : rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids)
+            ? rejectTarget.room_type_ids
+                .map((id) => roomTypes.find((rt) => rt.id === id)?.name || id.slice(0, 8))
+                .join(', ')
+            : rejectTarget.rate_code;
       const ranges: DateRange[] =
         rejectTarget.date_ranges && rejectTarget.date_ranges.length > 0
           ? rejectTarget.date_ranges
-          : [{ start: rejectTarget.start_date, end: rejectTarget.end_date }];
+          : [{ start: rejectTarget.start_date || '', end: rejectTarget.end_date || '' }];
       await sendTelegramMessage(
         `❌ <b>YÊU CẦU CHỈNH GIÁ ĐÃ BỊ TỪ CHỐI</b>\n` +
           `• Khách sạn: <b>${hotelNameById(rejectTarget.hotel_id)}</b>\n` +
@@ -390,10 +433,13 @@ export function RateRequestsPage() {
   };
 
   const formatRequestDateRange = (r: RateChangeRequest) => {
+    if (!r.start_date && !r.end_date && (!r.date_ranges || r.date_ranges.length === 0)) {
+      return '—';
+    }
     const ranges: DateRange[] =
       r.date_ranges && r.date_ranges.length > 0
         ? r.date_ranges
-        : [{ start: r.start_date, end: r.end_date }];
+        : [{ start: r.start_date || '', end: r.end_date || '' }];
     return ranges.map((rg) => `${toDMY(rg.start)} → ${toDMY(rg.end)}`).join('; ');
   };
 
@@ -449,7 +495,7 @@ export function RateRequestsPage() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2 text-sm font-medium text-navy-700">
                   <CalendarRange size={15} className="text-gold-600 text-[#A85644]" />
-                  Giai đoạn áp dụng
+                  Giai đoạn áp dụng{isOther && <span className="text-xs font-normal text-navy-400">(tuỳ chọn)</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-navy-700 bg-navy-50 border border-navy-100 rounded-full px-2 py-0.5">
@@ -496,7 +542,7 @@ export function RateRequestsPage() {
               </div>
             </div>
 
-            <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : 'VD: BAR 1, BAR 3, PEAK 1, BREAKFAST…'}>
+            <Field label="Mã giá (Rate Code)" hint={isDynamic ? 'Nhập tay giá, không tra cứu ma trận' : isOther ? 'Nhập nội dung yêu cầu tự do' : 'VD: BAR 1, BAR 3, PEAK 1, BREAKFAST…'}>
               <Select value={rateCode} onChange={setRateCode}>
                 {rateCodes.map((c) => (
                   <option key={c} value={c}>
@@ -504,8 +550,21 @@ export function RateRequestsPage() {
                   </option>
                 ))}
                 <option value="Dynamic">Dynamic</option>
+                <option value="Other">Yêu cầu khác (Other Request)</option>
               </Select>
             </Field>
+            {isOther && (
+              <Field label="Nội dung yêu cầu" hint="Nhập nội dung tự do, ví dụ: 1/11-3/11 flash sales">
+                <textarea
+                  value={otherText}
+                  onChange={(e) => setOtherText(e.target.value)}
+                  placeholder="Nhập nội dung yêu cầu…"
+                  rows={4}
+                  className="w-full bg-white border border-navy-200 rounded-lg px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-navy-400 resize-none"
+                  autoFocus
+                />
+              </Field>
+            )}
             {isDynamic && (
               <>
                 <Field label="Chọn loại phòng" hint="Chọn một hoặc nhiều loại phòng">
@@ -621,7 +680,16 @@ export function RateRequestsPage() {
                     <tr key={r.id} className="border-t border-navy-50">
                       <td className="px-3 py-2.5 text-navy-700">{hotelNameById(r.hotel_id)}</td>
                       <td className="px-3 py-2.5">
-                        <Badge tone={r.rate_code === 'Dynamic' ? 'gold' : 'neutral'}>{r.rate_code}</Badge>
+                        {r.rate_code === 'Other' || (!r.rate_code && r.other_text) ? (
+                          <Badge tone="neutral">Yêu cầu khác</Badge>
+                        ) : (
+                          <Badge tone={r.rate_code === 'Dynamic' ? 'gold' : 'neutral'}>{r.rate_code}</Badge>
+                        )}
+                        {r.other_text && (
+                          <div className="mt-1 text-xs text-navy-600 italic max-w-xs">
+                            {r.other_text}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 mono-num text-navy-600 whitespace-nowrap">
                         {formatRequestDateRange(r)}
@@ -678,9 +746,17 @@ export function RateRequestsPage() {
                 <span className="font-semibold text-navy-800">{hotelNameById(confirm.hotel_id)}</span>
               </div>
               <div>
-                <span className="text-navy-500">Mã giá:</span>{' '}
-                <span className="font-semibold text-navy-800">{confirm.rate_code}</span>
+                <span className="text-navy-500">Loại:</span>{' '}
+                <span className="font-semibold text-navy-800">
+                  {!confirm.rate_code && confirm.other_text ? 'Yêu cầu khác' : confirm.rate_code}
+                </span>
               </div>
+              {!confirm.rate_code && confirm.other_text && (
+                <div>
+                  <span className="text-navy-500">Nội dung:</span>{' '}
+                  <span className="text-navy-800">{confirm.other_text}</span>
+                </div>
+              )}
               {confirm.rate_code === 'Dynamic' && (
                 <>
                   <div>
@@ -706,9 +782,11 @@ export function RateRequestsPage() {
               </div>
             </div>
             <p className="text-xs text-navy-500">
-              {confirm.rate_code === 'Dynamic'
-                ? 'Yêu cầu Dynamic sẽ áp dụng các mức giá người dùng nhập trực tiếp cho các loại phòng đã chọn, lưu vào daily_rates với mã Dynamic. Thông báo xác nhận sẽ được gửi qua Telegram.'
-                : 'Hệ thống sẽ tra cứu bảng giá (price_matrix) cho tất cả loại phòng của khách sạn, chuẩn hoá mã giá bằng .trim().toUpperCase(), định dạng ngày dạng YYYY-MM-DD, và đẩy vào daily_rates — cập nhật ngay trên Trang tra cứu. Thông báo xác nhận sẽ được gửi qua Telegram.'}
+              {!confirm.rate_code && confirm.other_text
+                ? 'Đây là yêu cầu khác (không áp dụng giá tự động). Việc duyệt chỉ đánh dấu trạng thái thành Đã duyệt và gửi thông báo Telegram.'
+                : confirm.rate_code === 'Dynamic'
+                  ? 'Yêu cầu Dynamic sẽ áp dụng các mức giá người dùng nhập trực tiếp cho các loại phòng đã chọn, lưu vào daily_rates với mã Dynamic. Thông báo xác nhận sẽ được gửi qua Telegram.'
+                  : 'Hệ thống sẽ tra cứu bảng giá (price_matrix) cho tất cả loại phòng của khách sạn, chuẩn hoá mã giá bằng .trim().toUpperCase(), định dạng ngày dạng YYYY-MM-DD, và đẩy vào daily_rates — cập nhật ngay trên Trang tra cứu. Thông báo xác nhận sẽ được gửi qua Telegram.'}
             </p>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" onClick={() => setConfirm(null)}>Hủy</Button>
@@ -738,9 +816,17 @@ export function RateRequestsPage() {
                 <span className="font-semibold text-navy-800">{hotelNameById(rejectTarget.hotel_id)}</span>
               </div>
               <div>
-                <span className="text-navy-500">Mã giá:</span>{' '}
-                <span className="font-semibold text-navy-800">{rejectTarget.rate_code}</span>
+                <span className="text-navy-500">Loại:</span>{' '}
+                <span className="font-semibold text-navy-800">
+                  {!rejectTarget.rate_code && rejectTarget.other_text ? 'Yêu cầu khác' : rejectTarget.rate_code}
+                </span>
               </div>
+              {!rejectTarget.rate_code && rejectTarget.other_text && (
+                <div>
+                  <span className="text-navy-500">Nội dung:</span>{' '}
+                  <span className="text-navy-800">{rejectTarget.other_text}</span>
+                </div>
+              )}
               {rejectTarget.rate_code === 'Dynamic' && Array.isArray(rejectTarget.room_type_ids) && (
                 <div>
                   <span className="text-navy-500">Loại phòng:</span>{' '}
