@@ -155,8 +155,7 @@ export function MasterPriceListPage() {
     const { data, error } = await supabase
       .from('master_price_list')
       .select('*')
-      .eq('hotel_name', hotelName)
-      .order('id', { ascending: true }); // <--- BỔ SUNG DÒNG NÀY
+      .eq('hotel_name', hotelName);
     if (!error) setRows((data as Row[]) || []);
     else setRows([]);
     setLoading(false);
@@ -169,13 +168,7 @@ export function MasterPriceListPage() {
   // Unique option lists, preserving insertion order from imported Excel rows.
   // Room Types and Rate Plans are extracted 100% dynamically from master_price_list.
   const otaOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.ota_channel))), [rows]);
-  const roomOptions = useMemo(() => {
-  const list: string[] = [];
-  for (const r of rows) {
-    if (!list.includes(r.room_type)) list.push(r.room_type);
-  }
-  return list;
-}, [rows]);
+  const roomOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.room_type))), [rows]);
   const planOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.rate_plan))), [rows]);
   const codeOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.rate_code))), [rows]);
 
@@ -195,37 +188,21 @@ export function MasterPriceListPage() {
     [filtered],
   );
 
-  // Group rows by (room_type, rate_plan, rate_code) — keeping same room types together
-const grouped = useMemo(() => {
-  // 1. Tạo danh sách các room_type theo đúng thứ tự xuất hiện đầu tiên trong file Excel gốc
-  const roomOrder: string[] = [];
-  for (const r of filtered) {
-    if (!roomOrder.includes(r.room_type)) {
-      roomOrder.push(r.room_type);
+  // Group rows by (room_type, rate_plan, rate_code) — preserve insertion order.
+  const grouped = useMemo(() => {
+    const order: string[] = [];
+    const map = new Map<string, Row[]>();
+    for (const r of filtered) {
+      const key = `${r.room_type}||${r.rate_plan}||${r.rate_code}`;
+      if (!map.has(key)) {
+        order.push(key);
+        map.set(key, []);
+      }
+      map.get(key)!.push(r);
     }
-  }
+    return order.map((k) => ({ key: k, rows: map.get(k)! }));
+  }, [filtered]);
 
-  // 2. Sắp xếp lại danh sách filtered để tất cả các dòng cùng loại phòng nằm sát nhau
-  const sortedFiltered = [...filtered].sort((a, b) => {
-    return roomOrder.indexOf(a.room_type) - roomOrder.indexOf(b.room_type);
-  });
-
-  // 3. Gom nhóm theo key (room_type || rate_plan || rate_code)
-  const map = new Map<string, Row[]>();
-  const order: string[] = [];
-
-  for (const r of sortedFiltered) {
-    const key = `${r.room_type}||${r.rate_plan}||${r.rate_code}`;
-    if (!map.has(key)) {
-      order.push(key);
-      map.set(key, []);
-    }
-    map.get(key)!.push(r);
-  }
-
-  return order.map((k) => ({ key: k, rows: map.get(k)! }));
-}, [filtered]);
-  
   // Rowspan structure for the Loại phòng column.
   const roomTypeSpans = useMemo(() => {
     const out: number[] = [];
