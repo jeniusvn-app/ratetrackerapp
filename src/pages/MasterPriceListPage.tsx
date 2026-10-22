@@ -156,7 +156,7 @@ export function MasterPriceListPage() {
       .from('master_price_list')
       .select('*')
       .eq('hotel_name', hotelName)
-      .order('id', { ascending: true });
+      .order('id', { ascending: true }); // <--- BỔ SUNG DÒNG NÀY
     if (!error) setRows((data as Row[]) || []);
     else setRows([]);
     setLoading(false);
@@ -189,21 +189,26 @@ export function MasterPriceListPage() {
     [filtered],
   );
 
-  // Group rows by (room_type, rate_plan, rate_code) — preserve insertion order.
-  const grouped = useMemo(() => {
-    const order: string[] = [];
-    const map = new Map<string, Row[]>();
-    for (const r of filtered) {
-      const key = `${r.room_type}||${r.rate_plan}||${r.rate_code}`;
-      if (!map.has(key)) {
-        order.push(key);
-        map.set(key, []);
-      }
-      map.get(key)!.push(r);
-    }
-    return order.map((k) => ({ key: k, rows: map.get(k)! }));
-  }, [filtered]);
+  // Group rows by (room_type, rate_plan, rate_code) — preserving original room order
+const grouped = useMemo(() => {
+  // Sort filtered rows by original array index to ensure same room types stay together
+  const sortedFiltered = [...filtered];
+  
+  const map = new Map<string, Row[]>();
+  const order: string[] = [];
 
+  for (const r of sortedFiltered) {
+    const key = `${r.room_type}||${r.rate_plan}||${r.rate_code}`;
+    if (!map.has(key)) {
+      order.push(key);
+      map.set(key, []);
+    }
+    map.get(key)!.push(r);
+  }
+
+  return order.map((k) => ({ key: k, rows: map.get(k)! }));
+}, [filtered]);
+  
   // Rowspan structure for the Loại phòng column.
   const roomTypeSpans = useMemo(() => {
     const out: number[] = [];
