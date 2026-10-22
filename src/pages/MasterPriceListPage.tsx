@@ -169,7 +169,13 @@ export function MasterPriceListPage() {
   // Unique option lists, preserving insertion order from imported Excel rows.
   // Room Types and Rate Plans are extracted 100% dynamically from master_price_list.
   const otaOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.ota_channel))), [rows]);
-  const roomOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.room_type))), [rows]);
+  const roomOptions = useMemo(() => {
+  const list: string[] = [];
+  for (const r of rows) {
+    if (!list.includes(r.room_type)) list.push(r.room_type);
+  }
+  return list;
+}, [rows]);
   const planOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.rate_plan))), [rows]);
   const codeOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.rate_code))), [rows]);
 
@@ -189,11 +195,22 @@ export function MasterPriceListPage() {
     [filtered],
   );
 
-  // Group rows by (room_type, rate_plan, rate_code) — preserving original room order
+  // Group rows by (room_type, rate_plan, rate_code) — keeping same room types together
 const grouped = useMemo(() => {
-  // Sort filtered rows by original array index to ensure same room types stay together
-  const sortedFiltered = [...filtered];
-  
+  // 1. Tạo danh sách các room_type theo đúng thứ tự xuất hiện đầu tiên trong file Excel gốc
+  const roomOrder: string[] = [];
+  for (const r of filtered) {
+    if (!roomOrder.includes(r.room_type)) {
+      roomOrder.push(r.room_type);
+    }
+  }
+
+  // 2. Sắp xếp lại danh sách filtered để tất cả các dòng cùng loại phòng nằm sát nhau
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    return roomOrder.indexOf(a.room_type) - roomOrder.indexOf(b.room_type);
+  });
+
+  // 3. Gom nhóm theo key (room_type || rate_plan || rate_code)
   const map = new Map<string, Row[]>();
   const order: string[] = [];
 
